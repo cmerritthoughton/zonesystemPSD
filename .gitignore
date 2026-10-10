@@ -3,3 +3,4 @@ dist/
 test/.build/
 *.ccx
 .DS_Store
+.claude/settings.local.json

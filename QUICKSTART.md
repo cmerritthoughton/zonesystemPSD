@@ -8,7 +8,7 @@ This guide gets the Visualize First panel into Photoshop and takes you through i
 
 | What | Where |
 |---|---|
-| The plugin's source | `plugin/` in this repository. On the author's Mac: `~/Documents/GitHub/visualize-first/plugin/` |
+| The plugin's source | `plugin/` in this repository. On the author's Mac: `~/Documents/GitHub/zonesystemPSD/plugin/` |
 | The installable package | `dist/visualize-first-1.0.0.ccx`, built by the command in step 2. It isn't stored in Git. |
 | The installed copy (macOS) | Creative Cloud copies it into `~/Library/Application Support/Adobe/UXP/Plugins/External/`. Creative Cloud manages this folder, so don't edit or delete it by hand. |
 | The panel's practice log and settings | Inside Photoshop's plugin storage. Export the log from the panel (**Practice ▸ Export CSV**). |
