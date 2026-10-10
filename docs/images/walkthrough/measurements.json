@@ -1,0 +1,558 @@
+{
+ "image": {
+  "width": 768,
+  "height": 1024,
+  "profile": "Display P3"
+ },
+ "markers": [
+  {
+   "index": 1,
+   "x": 570,
+   "y": 370,
+   "L": 32.088,
+   "zone": 3.209,
+   "label": "Round tower in the alcove's shade",
+   "role": "Shadow anchor"
+  },
+  {
+   "index": 2,
+   "x": 650,
+   "y": 960,
+   "L": 79.362,
+   "zone": 7.936,
+   "label": "Sunlit plaza stone",
+   "role": "Light anchor"
+  },
+  {
+   "index": 3,
+   "x": 400,
+   "y": 150,
+   "L": 37.93,
+   "zone": 3.793,
+   "label": "Overhang ceiling, lit from below",
+   "role": ""
+  },
+  {
+   "index": 4,
+   "x": 265,
+   "y": 800,
+   "L": 54.63,
+   "zone": 5.463,
+   "label": "Shaded wall of the kiva",
+   "role": ""
+  },
+  {
+   "index": 5,
+   "x": 470,
+   "y": 345,
+   "L": 18,
+   "zone": 1.8,
+   "label": "Deep shade at the back of the alcove",
+   "role": ""
+  },
+  {
+   "index": 6,
+   "x": 40,
+   "y": 60,
+   "L": 51.078,
+   "zone": 5.108,
+   "label": "Blue sky",
+   "role": ""
+  },
+  {
+   "index": 7,
+   "x": 110,
+   "y": 520,
+   "L": 38.607,
+   "zone": 3.861,
+   "label": "Foliage",
+   "role": ""
+  }
+ ],
+ "variants": {
+  "colour": {
+   "label": "Colour, as metered",
+   "fractions": [
+    0.012,
+    0.055,
+    0.111,
+    0.157,
+    0.161,
+    0.068,
+    0.049,
+    0.091,
+    0.233,
+    0.061,
+    0
+   ],
+   "dark": 0.498,
+   "light": 0.434,
+   "middle": 0.279,
+   "texturedDark": 0.269,
+   "texturedLight": 0.324,
+   "dead": 0.129,
+   "key": "middle",
+   "range": "full"
+  },
+  "mono": {
+   "label": "Monochrome preview, no filter",
+   "fractions": [
+    0.013,
+    0.058,
+    0.115,
+    0.162,
+    0.153,
+    0.068,
+    0.049,
+    0.094,
+    0.234,
+    0.055,
+    0
+   ],
+   "dark": 0.5,
+   "light": 0.432,
+   "middle": 0.27,
+   "texturedDark": 0.277,
+   "texturedLight": 0.328,
+   "dead": 0.126,
+   "key": "middle",
+   "range": "full"
+  },
+  "filter-none": {
+   "label": "No filter",
+   "fractions": [
+    0.013,
+    0.058,
+    0.115,
+    0.162,
+    0.153,
+    0.068,
+    0.049,
+    0.094,
+    0.234,
+    0.055,
+    0
+   ],
+   "dark": 0.5,
+   "light": 0.432,
+   "middle": 0.27,
+   "texturedDark": 0.277,
+   "texturedLight": 0.328,
+   "dead": 0.126,
+   "key": "middle",
+   "range": "full"
+  },
+  "filter-yellow": {
+   "label": "Yellow (#8)",
+   "fractions": [
+    0.011,
+    0.046,
+    0.106,
+    0.143,
+    0.182,
+    0.073,
+    0.043,
+    0.074,
+    0.211,
+    0.109,
+    0.001
+   ],
+   "dark": 0.489,
+   "light": 0.438,
+   "middle": 0.299,
+   "texturedDark": 0.249,
+   "texturedLight": 0.285,
+   "dead": 0.167,
+   "key": "middle",
+   "range": "full"
+  },
+  "filter-orange": {
+   "label": "Orange (#21)",
+   "fractions": [
+    0.01,
+    0.037,
+    0.102,
+    0.128,
+    0.204,
+    0.075,
+    0.04,
+    0.06,
+    0.161,
+    0.18,
+    0.002
+   ],
+   "dark": 0.481,
+   "light": 0.444,
+   "middle": 0.319,
+   "texturedDark": 0.23,
+   "texturedLight": 0.221,
+   "dead": 0.23,
+   "key": "middle",
+   "range": "full"
+  },
+  "filter-red": {
+   "label": "Red (#25)",
+   "fractions": [
+    0.009,
+    0.025,
+    0.094,
+    0.106,
+    0.175,
+    0.134,
+    0.039,
+    0.046,
+    0.095,
+    0.251,
+    0.025
+   ],
+   "dark": 0.41,
+   "light": 0.457,
+   "middle": 0.347,
+   "texturedDark": 0.2,
+   "texturedLight": 0.141,
+   "dead": 0.311,
+   "key": "middle",
+   "range": "full"
+  },
+  "filter-deepred": {
+   "label": "Deep red (#29)",
+   "fractions": [
+    0.008,
+    0.019,
+    0.076,
+    0.111,
+    0.134,
+    0.178,
+    0.045,
+    0.038,
+    0.063,
+    0.214,
+    0.114
+   ],
+   "dark": 0.348,
+   "light": 0.474,
+   "middle": 0.357,
+   "texturedDark": 0.187,
+   "texturedLight": 0.101,
+   "dead": 0.355,
+   "key": "middle",
+   "range": "full"
+  },
+  "filter-green": {
+   "label": "Green (#58)",
+   "fractions": [
+    0.014,
+    0.063,
+    0.117,
+    0.169,
+    0.139,
+    0.066,
+    0.052,
+    0.101,
+    0.23,
+    0.047,
+    0
+   ],
+   "dark": 0.502,
+   "light": 0.431,
+   "middle": 0.257,
+   "texturedDark": 0.286,
+   "texturedLight": 0.331,
+   "dead": 0.125,
+   "key": "middle",
+   "range": "full"
+  },
+  "filter-blue": {
+   "label": "Blue (#47)",
+   "fractions": [
+    0.034,
+    0.137,
+    0.176,
+    0.141,
+    0.056,
+    0.059,
+    0.112,
+    0.249,
+    0.036,
+    0,
+    0
+   ],
+   "dark": 0.544,
+   "light": 0.398,
+   "middle": 0.227,
+   "texturedDark": 0.316,
+   "texturedLight": 0.285,
+   "dead": 0.171,
+   "key": "middle",
+   "range": "no-white"
+  },
+  "dev--1": {
+   "label": "N\u22121",
+   "fractions": [
+    0.013,
+    0.058,
+    0.115,
+    0.197,
+    0.151,
+    0.074,
+    0.098,
+    0.243,
+    0.049,
+    0.001,
+    0
+   ],
+   "dark": 0.535,
+   "light": 0.391,
+   "middle": 0.323,
+   "texturedDark": 0.313,
+   "texturedLight": 0.293,
+   "dead": 0.071,
+   "key": "middle",
+   "range": "no-white"
+  },
+  "dev-0": {
+   "label": "N",
+   "fractions": [
+    0.013,
+    0.058,
+    0.115,
+    0.162,
+    0.153,
+    0.068,
+    0.049,
+    0.094,
+    0.234,
+    0.055,
+    0
+   ],
+   "dark": 0.5,
+   "light": 0.432,
+   "middle": 0.27,
+   "texturedDark": 0.277,
+   "texturedLight": 0.328,
+   "dead": 0.126,
+   "key": "middle",
+   "range": "full"
+  },
+  "dev-1": {
+   "label": "N+1",
+   "fractions": [
+    0.013,
+    0.058,
+    0.114,
+    0.144,
+    0.146,
+    0.061,
+    0.048,
+    0.044,
+    0.08,
+    0.275,
+    0.018
+   ],
+   "dark": 0.474,
+   "light": 0.466,
+   "middle": 0.254,
+   "texturedDark": 0.258,
+   "texturedLight": 0.124,
+   "dead": 0.364,
+   "key": "middle",
+   "range": "full"
+  },
+  "dev-2": {
+   "label": "N+2",
+   "fractions": [
+    0.013,
+    0.058,
+    0.118,
+    0.128,
+    0.131,
+    0.063,
+    0.049,
+    0.032,
+    0.039,
+    0.09,
+    0.279
+   ],
+   "dark": 0.447,
+   "light": 0.489,
+   "middle": 0.244,
+   "texturedDark": 0.246,
+   "texturedLight": 0.071,
+   "dead": 0.439,
+   "key": "middle",
+   "range": "full"
+  },
+  "place-low": {
+   "label": "Low key: #1 on II, #2 falls on VII",
+   "fractions": [
+    0.022,
+    0.152,
+    0.205,
+    0.129,
+    0.062,
+    0.047,
+    0.081,
+    0.201,
+    0.092,
+    0.009,
+    0
+   ],
+   "dark": 0.57,
+   "light": 0.383,
+   "middle": 0.19,
+   "texturedDark": 0.334,
+   "texturedLight": 0.293,
+   "dead": 0.183,
+   "key": "middle",
+   "range": "full"
+  },
+  "place-drama": {
+   "label": "Expanded: #3 on III, #2 falls on IX",
+   "fractions": [
+    0.017,
+    0.104,
+    0.161,
+    0.182,
+    0.053,
+    0.049,
+    0.032,
+    0.045,
+    0.079,
+    0.271,
+    0.005
+   ],
+   "dark": 0.517,
+   "light": 0.433,
+   "middle": 0.135,
+   "texturedDark": 0.343,
+   "texturedLight": 0.124,
+   "dead": 0.398,
+   "key": "middle",
+   "range": "full"
+  },
+  "place-high": {
+   "label": "High key: #1 on IV, #2 falls on IX",
+   "fractions": [
+    0.011,
+    0.035,
+    0.086,
+    0.096,
+    0.15,
+    0.132,
+    0.062,
+    0.048,
+    0.086,
+    0.289,
+    0.007
+   ],
+   "dark": 0.377,
+   "light": 0.491,
+   "middle": 0.343,
+   "texturedDark": 0.181,
+   "texturedLight": 0.134,
+   "dead": 0.342,
+   "key": "middle",
+   "range": "full"
+  },
+  "burned": {
+   "label": "Expanded + edges and sky burned",
+   "fractions": [
+    0.019,
+    0.139,
+    0.203,
+    0.13,
+    0.052,
+    0.031,
+    0.037,
+    0.079,
+    0.15,
+    0.155,
+    0.004
+   ],
+   "dark": 0.543,
+   "light": 0.425,
+   "middle": 0.121,
+   "texturedDark": 0.333,
+   "texturedLight": 0.229,
+   "dead": 0.317,
+   "key": "middle",
+   "range": "full"
+  }
+ },
+ "placements": {
+  "low": {
+   "label": "Low key",
+   "detail": "#1 on II, #2 falls on VII",
+   "shift": -1.2,
+   "development": 0.296,
+   "markers": [
+    {
+     "index": 1,
+     "from": 3.2,
+     "to": 2
+    },
+    {
+     "index": 2,
+     "from": 7.904,
+     "to": 7
+    }
+   ]
+  },
+  "drama": {
+   "label": "Expanded",
+   "detail": "#3 on III, #2 falls on IX",
+   "shift": -0.758,
+   "development": 1.854,
+   "markers": [
+    {
+     "index": 3,
+     "from": 3.758,
+     "to": 3
+    },
+    {
+     "index": 2,
+     "from": 7.904,
+     "to": 9
+    }
+   ]
+  },
+  "high": {
+   "label": "High key",
+   "detail": "#1 on IV, #2 falls on IX",
+   "shift": 0.8,
+   "development": 0.296,
+   "markers": [
+    {
+     "index": 1,
+     "from": 3.2,
+     "to": 4
+    },
+    {
+     "index": 2,
+     "from": 7.904,
+     "to": 9
+    }
+   ]
+  }
+ },
+ "order": [
+  "colour",
+  "mono",
+  "filter-none",
+  "filter-yellow",
+  "filter-orange",
+  "filter-red",
+  "filter-deepred",
+  "filter-green",
+  "filter-blue",
+  "dev--1",
+  "dev-0",
+  "dev-1",
+  "dev-2",
+  "place-low",
+  "place-drama",
+  "place-high",
+  "burned"
+ ],
+ "errors": []
+}

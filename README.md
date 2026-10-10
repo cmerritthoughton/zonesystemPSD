@@ -6,6 +6,10 @@ It's for photographers, and for illustrators who use reference photos or work in
 
 **New here? Start with the [quick start](QUICKSTART.md):** install, launch, and a click-by-click walkthrough on your own image.
 
+**See it on a real photograph:** the [walkthrough](docs/WALKTHROUGH.md) follows one photograph through every setting and shows how each one redistributes its tones across the zones.
+
+![A photograph, its monochrome preview, and its zone map](docs/images/walkthrough/02-mono-zone-map.jpg)
+
 ## Why
 
 The Zone System is usually taught as metering, which undersells it. What made it powerful was the order of decisions:
@@ -105,7 +109,9 @@ tools/
   mock-ps.js       Photoshop stand-in for panel tests and the browser preview
   build-preview.js write test/.build/preview.html for viewing the panel in a browser
   make-icons.py    regenerate the zone-ladder icons
-docs/              training guide and architecture notes
+  make-walkthrough.sh, walkthrough.js, make-zone-charts.js
+                   rebuild docs/WALKTHROUGH.md's figures and charts in Photoshop
+docs/              walkthrough, training guide and architecture notes
 ```
 
 ```bash
