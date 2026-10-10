@@ -9,7 +9,7 @@ This guide gets the Visualize First panel into Photoshop and takes you through i
 | What | Where |
 |---|---|
 | The plugin's source | `plugin/` in this repository. On the author's Mac: `~/Documents/GitHub/zonesystemPSD/plugin/` |
-| The installable package | `visualize-first-1.1.0.ccx`: download it from the [latest release](https://github.com/cmerritthoughton/zonesystemPSD/releases/latest), or build it into `dist/` with the command in step 2. It isn't stored in Git. |
+| The installable package | `visualize-first-1.1.1.ccx`: download it from the [latest release](https://github.com/cmerritthoughton/zonesystemPSD/releases/latest), or build it into `dist/` with the command in step 2. It isn't stored in Git. |
 | The installed copy (macOS) | Creative Cloud copies it into `~/Library/Application Support/Adobe/UXP/Plugins/External/`. Creative Cloud manages this folder, so don't edit or delete it by hand. |
 | The panel's practice log and settings | Inside Photoshop's plugin storage. Export the log from the panel (**Practice ▸ Export CSV**). |
 | What the panel adds to your image | One layer group named **Visualize First**, at the top of the Layers panel. |
@@ -22,7 +22,7 @@ The plugin isn't part of Photoshop until you install it once (step 2).
 
 You need Photoshop 2024 (25.0) or later and the Creative Cloud desktop app.
 
-1. **Get the package.** The easiest way is to download `visualize-first-1.1.0.ccx` from the [latest release](https://github.com/cmerritthoughton/zonesystemPSD/releases/latest).
+1. **Get the package.** The easiest way is to download `visualize-first-1.1.1.ccx` from the [latest release](https://github.com/cmerritthoughton/zonesystemPSD/releases/latest).
 
    Or build it: in Terminal, from the repository folder, run:
 
@@ -30,9 +30,9 @@ You need Photoshop 2024 (25.0) or later and the Creative Cloud desktop app.
    tools/package.sh
    ```
 
-   It prints the path of the new file, `dist/visualize-first-1.1.0.ccx`. (`npm run package` does the same thing.)
+   It prints the path of the new file, `dist/visualize-first-1.1.1.ccx`. (`npm run package` does the same thing.)
 
-2. **Install it.** In Finder, double-click `visualize-first-1.1.0.ccx`. Creative Cloud opens and asks you to confirm. Because the plugin doesn't come from the Adobe marketplace, you'll see an "unverified" or third-party notice; choose **Install**.
+2. **Install it.** In Finder, double-click `visualize-first-1.1.1.ccx`. Creative Cloud opens and asks you to confirm. Because the plugin doesn't come from the Adobe marketplace, you'll see an "unverified" or third-party notice; choose **Install**.
 
 3. **Restart Photoshop** if it was open.
 
