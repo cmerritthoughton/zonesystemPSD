@@ -1,0 +1,23 @@
+{
+  "name": "zonesystem-psd",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Visualize First: a Photoshop panel that trains Ansel Adams's visualize-first Zone System habit, for photographers and pen-and-ink illustrators.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cmerritthoughton/zonesystemPSD.git"
+  },
+  "scripts": {
+    "test": "node --test --test-force-exit test/zones.test.js test/panel.test.js",
+    "test:photoshop": "tools/run-harness.sh",
+    "package": "tools/package.sh",
+    "icons": "python3 tools/make-icons.py",
+    "preview": "node tools/build-preview.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0"
+  }
+}
