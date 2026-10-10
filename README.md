@@ -4,6 +4,8 @@
 
 It's for photographers, and for illustrators who use reference photos or work in pen and ink and want Adams's command of light in their drawings. It doesn't make an image "look like Adams". It's a practice loop that trains your eye.
 
+**New here? Start with the [quick start](QUICKSTART.md):** install, launch, and a click-by-click walkthrough on your own image.
+
 ## Why
 
 The Zone System is usually taught as metering, which undersells it. What made it powerful was the order of decisions:
