@@ -139,6 +139,8 @@ Every **Reveal** is logged. The **Practice** tab shows your average miss over th
 ## 7. Undo, hide, remove
 
 - **Undo:** each panel action is one step under **Edit ▸ Undo**.
+- **Cancel:** press <kbd>Esc</kbd> during a long step. Nothing is changed.
+- **Selections:** an active marquee is set aside while the panel works and restored afterwards, so it never limits what the panel does.
 - **Hide everything:** click the eye on the **Visualize First** group in the Layers panel.
 - **Remove everything:** delete the **Visualize First** group.
 - **Remove the markers:** **Clear markers** on the Predict tab, or **Clear All** in the Color Sampler tool's options bar.
@@ -156,6 +158,9 @@ Every **Reveal** is logged. The **Practice** tab shows your average miss over th
 | The overlay looks grey, not coloured | The image is Grayscale; use **Ink ▸ Convert to RGB**. |
 | **Reveal** stays greyed out | Write the sentence, place a marker and pick a guess, or untick **Training mode** on the Practice tab. |
 | Nothing happens when you click | Read the status line at the bottom of the panel. |
+| "Photoshop is busy." | Close any open dialog, or finish the text edit or transform you're in, then try again. |
+| A long step is taking too long | Press <kbd>Esc</kbd> or click **Cancel** on Photoshop's progress bar. The image goes back exactly as it was. |
+| "This image is too wide to blur at that distance." | Lower **Merge distance**, or blur a smaller copy (**Image ▸ Image Size**). |
 
 ---
 

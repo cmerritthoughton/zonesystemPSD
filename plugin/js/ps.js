@@ -5,6 +5,12 @@
  * "Visualize First", at the top of the stack. The image's own layers are
  * never edited. Each operation is a single history step, and measurements
  * roll back so they leave no trace.
+ *
+ * Safety rules, because a plugin runs inside the artist's Photoshop:
+ *  - pixel work is done in bands under a fixed memory budget;
+ *  - long operations report progress and honour Esc, rolling back fully;
+ *  - every value is sanitised before it reaches batchPlay or the DOM;
+ *  - an active selection is set aside so it can't mask new layers.
  */
 (function (root) {
   "use strict";
@@ -30,8 +36,36 @@
   const layerName = (key, detail) => PREFIX + NAMES[key] + (detail ? " — " + detail : "");
 
   class VFError extends Error {}
+  const CANCELLED = "Cancelled. Nothing was changed.";
 
   const PS = () => require("photoshop");
+
+  function requireApis() {
+    const ps = PS();
+    const ok = ps && ps.core && typeof ps.core.executeAsModal === "function" && ps.imaging && typeof ps.imaging.getPixels === "function";
+    if (!ok || typeof ps.imaging.getSelection !== "function") throw new VFError("This panel needs Photoshop 2024 (25.0) or later.");
+  }
+
+  // Turn Photoshop's own failures into something an artist can act on.
+  function friendlyError(e) {
+    if (e instanceof VFError) return e;
+    const msg = String((e && e.message) || e || "");
+    if (/cancel/i.test(msg)) return new VFError(CANCELLED);
+    if (/modal/i.test(msg)) return new VFError("Photoshop is busy. Close any open dialog, finish text editing or a transform, then try again.");
+    return e;
+  }
+
+  // Between steps of a long operation: honour Esc and show progress.
+  function checkpoint(ctx, value) {
+    if (ctx && ctx.isCancelled) throw new VFError(CANCELLED);
+    if (ctx && typeof ctx.reportProgress === "function" && Number.isFinite(value)) {
+      try {
+        ctx.reportProgress({ value: Math.min(1, Math.max(0, value)) });
+      } catch (e) {
+        /* progress is cosmetic */
+      }
+    }
+  }
   // batchPlay reports failures as result objects rather than throwing.
   async function bp(descs) {
     const list = Array.isArray(descs) ? descs : [descs];
@@ -41,7 +75,13 @@
     return results;
   }
 
-  let runModal = (name, fn) => PS().core.executeAsModal(fn, { commandName: name });
+  let runModal = async (name, fn) => {
+    try {
+      return await PS().core.executeAsModal(fn, { commandName: GROUP + ": " + name });
+    } catch (e) {
+      throw friendlyError(e);
+    }
+  };
   function setModalRunner(fn) {
     runModal = fn;
   }
@@ -175,9 +215,53 @@
     return null;
   }
 
-  // Run fn(doc) as one modal, single-history-step operation. With commit
-  // false the document is rolled back afterwards (used for measuring).
+  // A new adjustment layer takes its mask from an active selection, and
+  // gradients are clipped to it. Copy the selection's mask (just its own
+  // bounds), deselect, and return { restore, release }: restore puts it back,
+  // release frees the copy when history rollback restores it instead.
+  // (Saving to a channel isn't available to plugins in Photoshop 2026.)
+  async function setSelectionAside(doc) {
+    let bounds = null;
+    try {
+      const r = await bp({ _obj: "get", _target: [{ _property: "selection" }, { _ref: "document", _id: doc.id }] });
+      const b = r && r[0] && r[0].selection;
+      if (b && b.left && b.right) {
+        bounds = { left: Math.floor(b.left._value), top: Math.floor(b.top._value), right: Math.ceil(b.right._value), bottom: Math.ceil(b.bottom._value) };
+      }
+    } catch (e) {
+      bounds = null;
+    }
+    if (!bounds || bounds.right <= bounds.left || bounds.bottom <= bounds.top) return null;
+    const saved = await PS().imaging.getSelection({ documentID: doc.id, sourceBounds: bounds });
+    let held = true;
+    const release = () => {
+      if (held) saved.imageData.dispose();
+      held = false;
+    };
+    try {
+      await bp({ _obj: "set", _target: [{ _ref: "channel", _property: "selection" }], to: { _enum: "ordinal", _value: "none" } });
+    } catch (e) {
+      release();
+      throw e;
+    }
+    const at = saved.sourceBounds || bounds;
+    return {
+      release,
+      async restore() {
+        try {
+          await PS().imaging.putSelection({ documentID: doc.id, imageData: saved.imageData, targetBounds: { left: at.left, top: at.top } });
+        } finally {
+          release();
+        }
+      },
+    };
+  }
+
+  // Run fn(doc, ctx) as one modal, single-history-step operation. With commit
+  // false the document is rolled back afterwards (used for measuring). Any
+  // failure, including Esc, rolls the document back completely.
   function inDoc(name, fn, { commit = true, docId = null } = {}) {
+    requireApis();
     return runModal(name, async (ctx) => {
       if (docId !== null) {
         const target = PS().app.documents.find((d) => d.id === docId);
@@ -197,11 +281,21 @@
       }
       const prevSel = doc.activeLayers.map((l) => l.id);
       let ok = false;
+      let aside = null;
       try {
-        const result = await fn(doc);
+        aside = commit ? await setSelectionAside(doc) : null;
+        const result = await fn(doc, ctx);
+        // Restoring inside the try means a failure here rolls everything back.
+        if (aside) await aside.restore();
         ok = true;
         return result;
       } finally {
+        if (aside) {
+          // Rollback restores the selection itself, except when history
+          // couldn't be suspended; then put it back by hand.
+          if (!ok && sid === null) await aside.restore().catch(() => {});
+          aside.release();
+        }
         if (commit && ok) await restoreSelection(doc, prevSel).catch(() => {});
         if (sid !== null) await host.resumeHistory(sid, commit && ok).catch(() => {});
       }
@@ -407,7 +501,11 @@
 
   // ---- Public operations ----------------------------------------------------------
 
-  function setOverlay({ mode, opacity = 100, split = 6, scale = Z.SCREEN_SCALE }) {
+  function setOverlay({ mode, opacity = 100, split = 6, scale = Z.SCREEN_SCALE } = {}) {
+    if (!Z.OVERLAY_MODES.some((m) => m.id === mode)) return Promise.reject(new VFError("Unknown overlay."));
+    opacity = Z.num(opacity, 0, 100, 100);
+    split = Math.round(Z.num(split, 1, 10, 6));
+    scale = Z.safeScale(scale);
     return inDoc("Overlay", async (doc) => {
       const group = await ensureGroup(doc);
       let layer = findChild(group, "overlay");
@@ -420,7 +518,7 @@
       if (!layer) layer = await createChild(doc, group, "overlay", makeAdjustment(layerName("overlay", label), gradientMapType(stops)));
       else await bp(setAdjustment(layer.id, gradientMapType(stops)));
       layer.name = layerName("overlay", label);
-      layer.opacity = Z.clamp(opacity, 0, 100);
+      layer.opacity = opacity;
       layer.visible = true;
       showGroup(group);
     });
@@ -437,6 +535,7 @@
   }
 
   function setMonochrome(on) {
+    on = !!on;
     return inDoc(on ? "Monochrome on" : "Monochrome off", async (doc) => {
       if (!isRGB(doc)) return;
       const group = await ensureGroup(doc);
@@ -456,7 +555,9 @@
     });
   }
 
-  function setDevelopment({ n, scale = Z.SCREEN_SCALE }) {
+  function setDevelopment({ n, scale = Z.SCREEN_SCALE } = {}) {
+    n = Math.round(Z.num(n, -3, 3, 0));
+    scale = Z.safeScale(scale);
     return inDoc("Development " + Z.devLabel(n), async (doc) => {
       const group = await ensureGroup(doc);
       await applyCurve(doc, group, "dev", devPoints(doc, n, scale), Z.devLabel(n));
@@ -466,7 +567,15 @@
 
   // Place one marker on a zone, and optionally let another fall on a second
   // zone: Adams's exposure-then-development decision, as one curve.
-  function placeMarkers({ placements, scale = Z.SCREEN_SCALE, spot = "spot" }) {
+  function placeMarkers({ placements, scale = Z.SCREEN_SCALE, spot = "spot" } = {}) {
+    const list = Array.isArray(placements) ? placements : [];
+    const clean = list.map((p) => ({ index: Math.round(Z.num(p && p.index, 1, 99, NaN)), zone: Math.round(Z.num(p && p.zone, 0, 10, NaN)) }));
+    const distinct = new Set(clean.map((p) => p.index)).size === clean.length;
+    if (!clean.length || clean.length > 2 || !distinct || clean.some((p) => !Number.isFinite(p.index) || !Number.isFinite(p.zone))) {
+      return Promise.reject(new VFError("Choose one or two different markers and a zone for each."));
+    }
+    placements = clean;
+    scale = Z.safeScale(scale);
     return inDoc("Place and develop", async (doc) => {
       const group = await ensureGroup(doc);
       const restore = hide(group, HELPERS.concat(PRINT));
@@ -488,6 +597,7 @@
   }
 
   function setBurnEdges(amount) {
+    amount = Math.round(Z.num(amount, 0, 100, 0));
     return inDoc("Burn edges", async (doc) => {
       const group = await ensureGroup(doc);
       let layer = findChild(group, "burnEdges");
@@ -498,14 +608,16 @@
         await edgeMask(doc, layer);
       }
       // Rename first: renaming a layer makes it visible again.
-      layer.name = layerName("burnEdges", Math.round(amount) + "%");
-      layer.opacity = Z.clamp(Math.round(amount), 0, 100);
+      layer.name = layerName("burnEdges", amount + "%");
+      layer.opacity = amount;
       layer.visible = amount > 0;
       showGroup(group);
     });
   }
 
-  function setBurnSky({ amount, depth = 0.4 }) {
+  function setBurnSky({ amount, depth = 0.4 } = {}) {
+    amount = Math.round(Z.num(amount, 0, 100, 0));
+    depth = Z.num(depth, 0.05, 0.95, 0.4);
     return inDoc("Burn sky", async (doc) => {
       const group = await ensureGroup(doc);
       let layer = findChild(group, "burnSky");
@@ -517,8 +629,8 @@
       }
       const depthLabel = Math.round(depth * 100) + "% down";
       if (fresh || !layer.name.includes(depthLabel)) await skyMask(doc, layer, depth);
-      layer.name = layerName("burnSky", Math.round(amount) + "%, " + depthLabel);
-      layer.opacity = Z.clamp(Math.round(amount), 0, 100);
+      layer.name = layerName("burnSky", amount + "%, " + depthLabel);
+      layer.opacity = amount;
       layer.visible = amount > 0;
       showGroup(group);
     });
@@ -541,6 +653,7 @@
   }
 
   function measureMarkers({ scale = Z.SCREEN_SCALE, spot = "spot" } = {}) {
+    scale = Z.safeScale(scale);
     return inDoc(
       "Measure",
       async (doc) => {
@@ -558,6 +671,7 @@
   }
 
   function measureDistribution({ scale = Z.SCREEN_SCALE } = {}) {
+    scale = Z.safeScale(scale);
     return inDoc(
       "Measure",
       async (doc) => {
@@ -577,91 +691,121 @@
     );
   }
 
-  // Copy composite pixels into a layer, matching the document's depth and
-  // mode, optionally Gaussian-blurred (sigma in pixels).
-  async function putComposite(doc, layer, res, bounds, sigma) {
-    const img = res.imageData;
-    const { width, height, components: c } = img;
-    let data;
+  // Pixel work runs in pieces no larger than these, so memory stays bounded
+  // whatever the image size (about 100 MB at the peak of a blur band).
+  const BAND_PIXELS = 4e6;
+  const CHUNK_PIXELS = 2e6;
+  const MAX_BLUR_PX = 64;
+  const MAX_LADDER_WIDTH = 600;
+
+  async function putBuffer(doc, layer, buf, width, height, comps, at) {
+    const options = { width, height, components: comps, colorSpace: comps === 3 ? "RGB" : "Grayscale", colorProfile: doc.colorProfileName };
+    if (buf instanceof Uint16Array) options.componentSize = 16;
+    const img = await PS().imaging.createImageDataFromBuffer(buf, options);
     try {
-      data = await img.getData();
+      // replace: false keeps what earlier pieces already wrote to the layer.
+      await PS().imaging.putPixels({ documentID: doc.id, layerID: layer.id, imageData: img, targetBounds: at, replace: false });
     } finally {
       img.dispose();
     }
-    const srcMax = maxOf(data);
-    const bits = bitsOf(doc);
-    const outComps = isRGB(doc) ? 3 : 1;
-    const n = width * height;
-    const out = bits === 16 ? new Uint16Array(n * outComps) : new Uint8Array(n * outComps);
-    const outMax = bits === 16 ? 32768 : 255;
-    const k = outMax / srcMax;
-    for (let i = 0; i < n; i++) for (let j = 0; j < outComps; j++) out[i * outComps + j] = Math.round(data[i * c + j] * k);
-    data = null;
-    if (sigma) Z.blurPixels(out, width, height, outComps, outComps, sigma);
-    const options = { width, height, components: outComps, colorSpace: isRGB(doc) ? "RGB" : "Grayscale", colorProfile: doc.colorProfileName };
-    if (bits === 16) options.componentSize = 16;
-    const put = await PS().imaging.createImageDataFromBuffer(out, options);
-    try {
-      await PS().imaging.putPixels({ documentID: doc.id, layerID: layer.id, imageData: put, targetBounds: bounds });
-    } finally {
-      put.dispose();
+  }
+
+  // Composite pixels -> the document's channel layout and depth, alpha dropped.
+  function toDocPixels(doc, data, n, srcComps) {
+    const comps = isRGB(doc) ? 3 : 1;
+    const out = bitsOf(doc) === 16 ? new Uint16Array(n * comps) : new Uint8Array(n * comps);
+    const k = (bitsOf(doc) === 16 ? 32768 : 255) / maxOf(data);
+    for (let i = 0; i < n; i++) for (let j = 0; j < comps; j++) out[i * comps + j] = Math.round(data[i * srcComps + j] * k);
+    return { buf: out, comps };
+  }
+
+  // Fill a rectangle of a layer with one grey, a chunk of rows at a time.
+  async function fillRegion(doc, layer, left, top, width, height, grey) {
+    const comps = isRGB(doc) ? 3 : 1;
+    const Ctor = bitsOf(doc) === 16 ? Uint16Array : Uint8Array;
+    const rowsPerChunk = Math.max(1, Math.floor(CHUNK_PIXELS / width));
+    for (let y = top; y < top + height; y += rowsPerChunk) {
+      const h = Math.min(rowsPerChunk, top + height - y);
+      await putBuffer(doc, layer, new Ctor(width * h * comps).fill(grey), width, h, comps, { left, top: y });
     }
+  }
+
+  // Blur one band: read its rows plus context, blur, write back its own rows.
+  async function blurBand(doc, layer, band, sigma) {
+    const W = Math.round(doc.width);
+    const res = await PS().imaging.getPixels({ documentID: doc.id, sourceBounds: { left: 0, top: band.top, right: W, bottom: band.bottom } });
+    const img = res.imageData;
+    const { width, height, components } = img;
+    let pixels;
+    try {
+      if (width !== W || height !== band.bottom - band.top) throw new VFError("Photoshop returned an unexpected image size. Nothing was changed.");
+      pixels = toDocPixels(doc, await img.getData(), width * height, components);
+    } finally {
+      img.dispose();
+    }
+    Z.blurPixels(pixels.buf, width, height, pixels.comps, pixels.comps, sigma);
+    const rowLen = width * pixels.comps;
+    const core = pixels.buf.slice((band.y0 - band.top) * rowLen, (band.y1 - band.top) * rowLen);
+    await putBuffer(doc, layer, core, width, band.y1 - band.y0, pixels.comps, { left: 0, top: band.y0 });
   }
 
   // Blur a copy of the image until hatching merges, the way a drawing reads
   // from across the room. Overlays then show the zones the marks produce.
-  function makeOpticalAverage({ mm = 1 }) {
-    return inDoc("Optical average", async (doc) => {
+  function makeOpticalAverage({ mm = 1, bandPixels = BAND_PIXELS } = {}) {
+    const distance = Z.num(mm, 0.1, 5, 1);
+    return inDoc("Optical average", async (doc, ctx) => {
+      const wanted = (distance * (doc.resolution || 72)) / 25.4;
+      const sigma = Z.clamp(wanted, 0.5, MAX_BLUR_PX);
+      const plan = Z.bandPlan({ width: Math.round(doc.width), height: Math.round(doc.height), margin: Z.blurSupport(sigma), budget: bandPixels });
+      if (!plan) throw new VFError("This image is too wide to blur at that distance. Lower the merge distance, or work on a smaller copy (Image ▸ Image Size).");
       const group = await ensureGroup(doc);
       const old = findChild(group, "optical");
       if (old) old.delete();
-      // Copy the image as it looks without any of our layers.
+      // Read the image as it looks without our layers. The new layer stays
+      // hidden while it fills, so later bands never read earlier results.
       const restore = hide(group, ORDER);
-      let res;
+      let layer;
       try {
-        res = await PS().imaging.getPixels({ documentID: doc.id });
+        layer = await createChild(doc, group, "optical", makePixelLayer(layerName("optical", distance.toFixed(1) + " mm")));
+        layer.visible = false;
+        for (let i = 0; i < plan.length; i++) {
+          checkpoint(ctx, i / plan.length);
+          await blurBand(doc, layer, plan[i], sigma);
+        }
       } finally {
         restore();
       }
-      const radius = Math.max(0.5, (mm * (doc.resolution || 72)) / 25.4);
-      const layer = await createChild(doc, group, "optical", makePixelLayer(layerName("optical", mm.toFixed(1) + " mm")));
-      await putComposite(doc, layer, res, { left: 0, top: 0 }, radius);
-      return { radius };
+      layer.visible = true;
+      return { radius: sigma, capped: wanted > MAX_BLUR_PX, bands: plan.length };
     });
   }
 
   // An eleven-step strip down the right edge, from Zone X at the top to 0.
-  function addLadder({ scale = Z.SCREEN_SCALE }) {
-    return inDoc("Zone ladder", async (doc) => {
+  function addLadder({ scale = Z.SCREEN_SCALE } = {}) {
+    const sc = Z.safeScale(scale);
+    return inDoc("Zone ladder", async (doc, ctx) => {
       const group = await ensureGroup(doc);
       const old = findChild(group, "ladder");
       if (old) old.delete();
       const t = transferOf(doc);
-      const W = doc.width;
-      const H = doc.height;
-      const sw = Math.max(12, Math.round(Math.max(W, H) * 0.035));
-      const bits = bitsOf(doc);
-      const comps = isRGB(doc) ? 3 : 1;
-      const max = bits === 16 ? 32768 : 255;
-      const buf = bits === 16 ? new Uint16Array(sw * H * comps) : new Uint8Array(sw * H * comps);
-      for (let y = 0; y < H; y++) {
-        const k = 10 - Math.min(10, Math.floor((y / H) * 11));
-        const v = Math.round(Z.encodeL(Z.lOfZone(k, scale), t) * max);
-        for (let x = 0; x < sw; x++) for (let j = 0; j < comps; j++) buf[(y * sw + x) * comps + j] = v;
-      }
+      const W = Math.round(doc.width);
+      const H = Math.round(doc.height);
+      const sw = Z.clamp(Math.round(Math.max(W, H) * 0.035), Math.min(12, W), Math.min(MAX_LADDER_WIDTH, W));
+      const max = bitsOf(doc) === 16 ? 32768 : 255;
       const layer = await createChild(doc, group, "ladder", makePixelLayer(layerName("ladder")));
-      const options = { width: sw, height: H, components: comps, colorSpace: comps === 3 ? "RGB" : "Grayscale", colorProfile: doc.colorProfileName };
-      if (bits === 16) options.componentSize = 16;
-      const img = await PS().imaging.createImageDataFromBuffer(buf, options);
-      try {
-        await PS().imaging.putPixels({ documentID: doc.id, layerID: layer.id, imageData: img, targetBounds: { left: W - sw, top: 0 } });
-      } finally {
-        img.dispose();
+      for (let i = 0; i <= 10; i++) {
+        checkpoint(ctx, i / 11);
+        const y0 = Math.round((i * H) / 11);
+        const y1 = Math.round(((i + 1) * H) / 11);
+        if (y1 <= y0) continue;
+        const grey = Math.round(Z.encodeL(Z.lOfZone(10 - i, sc), t) * max);
+        await fillRegion(doc, layer, W - sw, y0, sw, y1 - y0, grey);
       }
     });
   }
 
   function removeLayer(key) {
+    if (!NAMES[key]) return Promise.reject(new VFError("Unknown layer."));
     return inDoc("Remove " + NAMES[key], async (doc) => {
       const l = findChild(findGroup(doc), key);
       if (l) l.delete();
@@ -684,7 +828,9 @@
     });
   }
 
-  function applyVariant({ filterId, n, scale = Z.SCREEN_SCALE, docId = null }) {
+  function applyVariant({ filterId, n, scale = Z.SCREEN_SCALE, docId = null } = {}) {
+    n = Math.round(Z.num(n, -3, 3, 0));
+    scale = Z.safeScale(scale);
     return inDoc(
       "Apply variant",
       async (doc) => {
@@ -732,6 +878,13 @@
   // Render every filter × development combination of the image into a new
   // document: one scene, many possible performances.
   function makeOpportunitiesSheet({ filters = Z.SHEET_FILTERS, devs = Z.SHEET_DEVS, thumb = 320, includeBurns = true, masses = false, scale = Z.SCREEN_SCALE } = {}) {
+    const known = new Set(Z.FILTERS.map((f) => f.id));
+    filters = (Array.isArray(filters) ? filters : []).filter((f) => known.has(f)).slice(0, 7);
+    devs = Array.from(new Set((Array.isArray(devs) ? devs : []).map((n) => Math.round(Z.num(n, -3, 3, NaN))).filter(Number.isFinite))).slice(0, 6);
+    if (!filters.length || !devs.length) return Promise.reject(new VFError("Choose at least one filter and one development."));
+    thumb = Math.round(Z.num(thumb, 120, 600, 320));
+    scale = Z.safeScale(scale);
+    requireApis();
     return runModal("Opportunities sheet", async (ctx) => {
       const ps = PS();
       const doc = activeDoc();
@@ -739,9 +892,14 @@
       const host = ctx && ctx.hostControl;
       const rgb = isRGB(doc);
       const rows = rgb ? filters : ["none"];
+      const total = rows.length * devs.length;
       const cells = [];
+      // Every change below is rolled back, so the source ends exactly as it
+      // started, including the artist's selection.
       const sid = await host.suspendHistory({ documentID: doc.id, name: GROUP + ": Opportunities" });
       try {
+        // Deselect can be unavailable when nothing is selected; that's fine.
+        await bp({ _obj: "set", _target: [{ _ref: "channel", _property: "selection" }], to: { _enum: "ordinal", _value: "none" } }).catch(() => {});
         const group = await ensureGroup(doc);
         hide(group, ["ladder"]);
         if (!includeBurns) hide(group, ["burnEdges", "burnSky"]);
@@ -762,6 +920,7 @@
         for (const f of rows) {
           if (rgb) await applyFilter(doc, group, f, true);
           for (const n of devs) {
+            checkpoint(ctx, cells.length / total);
             await applyCurve(doc, group, "dev", devPoints(doc, n, scale), Z.devLabel(n));
             const pic = await readRGB8(doc, targetSize);
             const { L } = await readLightness(doc, { targetSize: doc.width >= doc.height ? { width: 160 } : { height: 160 } });
@@ -772,6 +931,7 @@
         await host.resumeHistory(sid, false);
       }
 
+      checkpoint(ctx, 1);
       const tw = cells[0].pic.width;
       const th = cells[0].pic.height;
       const M = 36;
@@ -836,6 +996,7 @@
     NAMES,
     ORDER,
     VFError,
+    CANCELLED,
     setModalRunner,
     docInfo,
     setOverlay,

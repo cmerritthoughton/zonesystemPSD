@@ -47,7 +47,7 @@
   const settings = Object.assign({ training: true, spot: "spot", scaleMode: "screen", ink: { black: 15, white: 94 } }, store.get(SETTINGS_KEY, {}));
   const saveSettings = () => store.set(SETTINGS_KEY, settings);
 
-  const S = { step: "visualize", doc: null, sessions: {}, busy: false, sig: "", markerSig: "", sheet: null, clearArmed: null };
+  const S = { step: "visualize", doc: null, sessions: {}, busy: false, pending: null, sig: "", markerSig: "", sheet: null, clearArmed: null };
 
   const freshSession = () => ({
     sentence: "",
@@ -109,9 +109,19 @@
     el.className = "status" + (isError ? " error" : "");
   }
 
-  async function run(label, fn) {
+  // One Photoshop operation at a time. Settings that simply replace the last
+  // value (overlay, filter, development, burns) queue their latest request so
+  // the image always ends up matching the panel; anything heavier is ignored
+  // while busy, so a double click can't start it twice. fn may return a
+  // message to show when it finishes.
+  async function run(label, fn, { queue = false } = {}) {
     if (S.busy) {
-      status("Still working on the last step…");
+      if (queue) {
+        S.pending = { label, fn };
+        status(label + " (queued)");
+      } else {
+        status("Still working on the last step…");
+      }
       return;
     }
     if (!S.doc) {
@@ -121,13 +131,18 @@
     S.busy = true;
     status(label);
     try {
-      await fn();
-      status("");
+      const message = await fn();
+      status(typeof message === "string" ? message : "");
     } catch (e) {
       status(e && e.message ? e.message : String(e), true);
     } finally {
       S.busy = false;
       refresh(true);
+    }
+    if (S.pending) {
+      const next = S.pending;
+      S.pending = null;
+      await run(next.label, next.fn, { queue: true });
     }
   }
 
@@ -427,9 +442,16 @@
     }
   }
 
-  const applyOverlay = () => {
+  // Requests capture their values when made: by the time a queued request
+  // runs, refreshing from the layers may have changed the session.
+  const overlayRequest = () => {
     const ses = session();
-    return P.setOverlay({ mode: ses.overlay, opacity: ses.opacity, split: ses.split, scale: scale() });
+    return { mode: ses.overlay, opacity: ses.opacity, split: ses.split, scale: scale() };
+  };
+  const applyOverlay = (req = overlayRequest()) => P.setOverlay(req);
+  const queueOverlay = (label) => {
+    const req = overlayRequest();
+    run(label, () => applyOverlay(req), { queue: true });
   };
 
   async function reveal() {
@@ -508,7 +530,7 @@
     });
     on("mono", "change", () => {
       const want = $("mono").checked;
-      run(want ? "Monochrome preview…" : "Back to colour…", () => P.setMonochrome(want));
+      run(want ? "Monochrome preview…" : "Back to colour…", () => P.setMonochrome(want), { queue: true });
     });
     on("toPredict", "click", () => setStep("predict"));
     on("fresh", "click", () =>
@@ -553,7 +575,7 @@
     on("filter", "change", () => {
       const id = $("filter").value;
       session().filter = id;
-      run("Filter…", () => P.setFilter(id));
+      run("Filter…", () => P.setFilter(id), { queue: true });
     });
     on("devs", "click", (e) => {
       const n = closestData(e, "data-dev");
@@ -561,7 +583,7 @@
       const ses = session();
       ses.dev = Number(n);
       ses.placement = null;
-      run("Developing…", () => P.setDevelopment({ n: Number(n), scale: scale() }));
+      run("Developing…", () => P.setDevelopment({ n: Number(n), scale: scale() }), { queue: true });
     });
     on("placeA", "change", () => (session().placeA = Number($("placeA").value)));
     on("placeB", "change", () => (session().placeB = Number($("placeB").value)));
@@ -592,14 +614,15 @@
     on("burnEdges", "change", () => {
       const v = Number($("burnEdges").value);
       session().burnEdges = v;
-      run("Burning the edges…", () => P.setBurnEdges(v));
+      run("Burning the edges…", () => P.setBurnEdges(v), { queue: true });
     });
     on("burnSky", "input", () => ($("burnSkyVal").textContent = $("burnSky").value + "%"));
     const burnSky = () => {
       const ses = session();
       ses.burnSky = Number($("burnSky").value);
       ses.skyDepth = $("skyDepth").value;
-      run("Burning the sky…", () => P.setBurnSky({ amount: ses.burnSky, depth: Number(ses.skyDepth) }));
+      const req = { amount: ses.burnSky, depth: Number(ses.skyDepth) };
+      run("Burning the sky…", () => P.setBurnSky(req), { queue: true });
     };
     on("burnSky", "change", burnSky);
     on("skyDepth", "change", () => {
@@ -615,14 +638,14 @@
 
     // Opportunities
     on("makeSheet", "click", () =>
-      run("Rendering twenty performances…", async () => {
+      run("Rendering twenty performances… Esc cancels.", async () => {
         S.sheet = await P.makeOpportunitiesSheet({
           thumb: Number($("sheetSize").value),
           includeBurns: $("sheetBurns").checked,
           masses: $("sheetMasses").checked,
           scale: scale(),
         });
-        status("The sheet is open as a new document.");
+        return "The sheet is open as a new document.";
       })
     );
     on("applyVariant", "click", () => {
@@ -643,7 +666,7 @@
       saveSettings();
       session().inkRead = null;
       render();
-      if (session().overlay !== "off") run("Updating the overlay…", applyOverlay);
+      if (session().overlay !== "off") queueOverlay("Updating the overlay…");
     });
     const inkInput = () => {
       const black = Number($("inkBlack").value);
@@ -652,7 +675,7 @@
       settings.ink = { black, white };
       saveSettings();
       renderInk();
-      if (Z.validScale(settings.ink) && session().overlay !== "off") run("Updating the overlay…", applyOverlay);
+      if (Z.validScale(settings.ink) && session().overlay !== "off") queueOverlay("Updating the overlay…");
     };
     on("inkBlack", "change", inkInput);
     on("inkWhite", "change", inkInput);
@@ -674,7 +697,12 @@
       session().mm = Number($("mm").value);
       renderInk();
     });
-    on("makeOptical", "click", () => run("Blurring a copy…", () => P.makeOpticalAverage({ mm: session().mm })));
+    on("makeOptical", "click", () =>
+      run("Blurring a copy… Esc cancels.", async () => {
+        const r = await P.makeOpticalAverage({ mm: session().mm });
+        return r && r.capped ? `Blurred at ${Math.round(r.radius)} px, the most this panel uses. Lower the merge distance for a finer reading.` : "";
+      })
+    );
     on("removeOptical", "click", () => run("Removing…", () => P.removeLayer("optical")));
     on("readInk", "click", () =>
       run("Reading markers…", async () => {
@@ -716,17 +744,17 @@
       if (!id) return;
       session().overlay = id;
       renderOverlay();
-      run("Overlay…", applyOverlay);
+      queueOverlay("Overlay…");
     });
     on("split", "input", () => ($("splitVal").textContent = "Zone " + Z.ROMAN[Number($("split").value)]));
     on("split", "change", () => {
       session().split = Number($("split").value);
-      if (session().overlay === "notan") run("Overlay…", applyOverlay);
+      if (session().overlay === "notan") queueOverlay("Overlay…");
     });
     on("opacity", "input", () => ($("opacityVal").textContent = $("opacity").value + "%"));
     on("opacity", "change", () => {
       session().opacity = Number($("opacity").value);
-      if (session().overlay !== "off") run("Overlay…", applyOverlay);
+      if (session().overlay !== "off") queueOverlay("Overlay…");
     });
   }
 

@@ -68,6 +68,14 @@
     );
   }
 
+  // Anything that reaches Photoshop passes through these, so a bad value
+  // becomes a sensible default instead of NaN in a descriptor or a loop.
+  const safeScale = (scale) => (validScale(scale) ? scale : SCREEN_SCALE);
+  function num(v, lo, hi, fallback) {
+    const n = typeof v === "string" && v.trim() !== "" ? Number(v) : v;
+    return typeof n === "number" && Number.isFinite(n) ? clamp(n, lo, hi) : fallback;
+  }
+
   // ---- Lightness and encoding -------------------------------------------
 
   // CIE L* <-> relative luminance Y (0..1), with the exact CIE constants.
@@ -168,6 +176,9 @@
   }
 
   function overlayBands(mode, { scale = SCREEN_SCALE, transfer = "srgb", split = 6 } = {}) {
+    scale = safeScale(scale);
+    if (!TRANSFERS[transfer]) transfer = "srgb";
+    split = Math.round(num(split, 1, 10, 6));
     const edges = zoneEdges(scale, transfer);
     const bands = [];
     for (let k = 0; k <= 10; k++) {
@@ -196,12 +207,13 @@
       stops.push({ loc: l, rgb });
     };
     for (const b of bands) {
+      // Non-finite edges would never satisfy the loop's exit test.
+      if (!Number.isFinite(b.from) || !Number.isFinite(b.to) || b.to < b.from) continue;
       if (b.rgb === null) {
-        for (let loc = b.from; ; loc += 128) {
+        for (let loc = b.from; loc < b.to + 128; loc += 128) {
           const l = Math.min(loc, b.to);
           const g = Math.round((l / LOC_MAX) * 255);
           push(l, [g, g, g]);
-          if (l >= b.to) break;
         }
       } else {
         push(b.from, b.rgb);
@@ -220,6 +232,8 @@
   const DEV_WEIGHTS = [0, 0, 0, 0, 0.25, 0.5, 0.75, 1, 1, 1];
 
   function developmentPairs(n, scale = SCREEN_SCALE) {
+    scale = safeScale(scale);
+    n = num(n, -3, 3, 0);
     const s = zoneStep(scale);
     const pairs = [[0, 0]];
     for (let k = 0; k <= 10; k++) {
@@ -236,6 +250,10 @@
   // Place one marker on a zone (exposure) and optionally let a second fall
   // on another (development). Markers: [{ L, zone }] in any order.
   function placementPairs(markers, scale = SCREEN_SCALE) {
+    scale = safeScale(scale);
+    if (!markers.length || markers.some((m) => !Number.isFinite(m.L) || !Number.isFinite(m.zone))) {
+      throw new Error("Couldn't read those markers. Check the Color Sampler markers on the image.");
+    }
     const sorted = markers.slice().sort((a, b) => a.L - b.L);
     const anchors = [[0, 0]];
     for (const m of sorted) anchors.push([m.L, clamp(lOfZone(m.zone, scale), 0, 100)]);
@@ -316,9 +334,11 @@
   // ---- Measurement and reading ------------------------------------------
 
   function zoneFractions(Ls, scale = SCREEN_SCALE) {
+    scale = safeScale(scale);
     const counts = new Array(11).fill(0);
     let n = 0;
     for (let i = 0; i < Ls.length; i++) {
+      if (!Number.isFinite(Ls[i])) continue;
       counts[zoneIndex(Ls[i], scale)]++;
       n++;
     }
@@ -525,6 +545,31 @@
     return data;
   }
 
+  // How far a blur reaches: the sum of the box radii. A row of the result
+  // depends only on source rows within this distance.
+  function blurSupport(sigma) {
+    if (!(sigma > 0.3)) return 0;
+    return boxesForGauss(sigma).reduce((s, size) => s + (size - 1) / 2, 0);
+  }
+
+  // Split an image into horizontal bands for processing within a memory
+  // budget. Each band writes rows [y0, y1) and reads [top, bottom), which adds
+  // `margin` rows of context on each side. Returns null when even a modest
+  // band can't fit, so callers can refuse instead of exhausting memory.
+  const MIN_BAND_ROWS = 32;
+  function bandPlan({ width, height, margin, budget }) {
+    if (!(width > 0 && height > 0 && margin >= 0 && budget > 0)) return null;
+    const core = Math.floor(budget / width) - 2 * margin;
+    if (core < Math.min(height, MIN_BAND_ROWS)) return null;
+    const rows = Math.min(height, core);
+    const bands = [];
+    for (let y0 = 0; y0 < height; y0 += rows) {
+      const y1 = Math.min(height, y0 + rows);
+      bands.push({ y0, y1, top: Math.max(0, y0 - margin), bottom: Math.min(height, y1 + margin) });
+    }
+    return bands;
+  }
+
   // ---- Interpretations -------------------------------------------------------
 
   // Glass filters on panchromatic film, as monochrome channel mixes (R, G, B %).
@@ -561,6 +606,8 @@
     SHEET_DEVS,
     clamp,
     validScale,
+    safeScale,
+    num,
     zoneStep,
     zoneValue,
     zoneIndex,
@@ -590,6 +637,8 @@
     inkCoverage,
     boxesForGauss,
     blurPixels,
+    blurSupport,
+    bandPlan,
     filterById,
     devLabel,
     signedZones,

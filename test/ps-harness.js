@@ -247,6 +247,122 @@
       await V.removeLayer("optical");
     });
 
+    // ---- Stability: bounded memory, cancellation, selections -----------------
+
+    const layerPixels = (d, layer, xs, y) =>
+      modal("read layer", async () => {
+        const out = [];
+        for (const x of xs) {
+          const r = await imaging.getPixels({ documentID: d.id, layerID: layer.id, sourceBounds: { left: x, top: y, right: x + 1, bottom: y + 1 } });
+          const data = await r.imageData.getData();
+          out.push(data[0]);
+          r.imageData.dispose();
+        }
+        return out;
+      });
+    const sampleRows = [5, 118, 121, 239, 241, 300, 371, 439];
+    const sampleCols = [0, 59, 61, 239, 241, 659];
+
+    await check("banded blur matches a single pass exactly", async () => {
+      const single = await V.makeOpticalAverage({ mm: 2 });
+      const a = [];
+      for (const y of sampleRows) a.push(...(await layerPixels(doc, child(doc, "optical"), sampleCols, y)));
+      const sigma = single.radius;
+      const margin = Z.blurSupport(sigma);
+      const banded = await V.makeOpticalAverage({ mm: 2, bandPixels: W * (2 * margin + 40) });
+      const b = [];
+      for (const y of sampleRows) b.push(...(await layerPixels(doc, child(doc, "optical"), sampleCols, y)));
+      const worst = Math.max(...a.map((v, i) => Math.abs(v - b[i])));
+      ok("banded blur matches a single pass exactly", single.bands === 1 && banded.bands > 3 && worst <= 1 && child(doc, "optical").visible, `bands ${single.bands}/${banded.bands}, worst ${worst}`);
+      await V.removeLayer("optical");
+    });
+
+    await check("an image too wide for the budget is refused cleanly", async () => {
+      const before = historyCount(doc);
+      let msg = "";
+      try {
+        await V.makeOpticalAverage({ mm: 2, bandPixels: 1000 });
+      } catch (e) {
+        msg = e.message;
+      }
+      ok("an image too wide for the budget is refused cleanly", /too wide/.test(msg) && !child(doc, "optical") && historyCount(doc) === before, `${msg} history ${before}→${historyCount(doc)}`);
+    });
+
+    await check("Esc rolls an operation back completely", async () => {
+      const before = historyCount(doc);
+      const docsBefore = app.documents.length;
+      const cancelled = { hostControl: outerContext.hostControl, isCancelled: true, reportProgress() {} };
+      V.setModalRunner((name, fn) => fn(cancelled));
+      const msgs = [];
+      try {
+        for (const op of [() => V.makeOpticalAverage({ mm: 2 }), () => V.makeOpportunitiesSheet({ thumb: 120 }), () => V.addLadder({})]) {
+          try {
+            await op();
+            msgs.push("completed");
+          } catch (e) {
+            msgs.push(e.message);
+          }
+        }
+      } finally {
+        V.setModalRunner((name, fn) => fn(outerContext));
+      }
+      ok(
+        "Esc rolls an operation back completely",
+        msgs.every((m) => m === V.CANCELLED) && !child(doc, "optical") && !child(doc, "ladder") && historyCount(doc) === before && app.documents.length === docsBefore,
+        `${msgs.join(" | ")} history ${before}→${historyCount(doc)} docs ${docsBefore}→${app.documents.length}`
+      );
+    });
+
+    await check("an active selection neither masks new layers nor gets lost", async () => {
+      const sdoc = await makeChart("VF_HARNESS_SEL", { markers: false });
+      const channels = async () => (await modal("get", () => bp({ _obj: "get", _target: [{ _property: "numberOfChannels" }, { _ref: "document", _id: sdoc.id }] })))[0].numberOfChannels;
+      const selection = async () => {
+        const r = await modal("get", () => bp({ _obj: "get", _target: [{ _property: "selection" }, { _ref: "document", _id: sdoc.id }] }));
+        const b = r[0] && r[0].selection;
+        return b ? [b.left._value, b.top._value, b.right._value, b.bottom._value].join(",") : "none";
+      };
+      await modal("select", () =>
+        bp({ _obj: "set", _target: [{ _ref: "channel", _property: "selection" }], to: { _obj: "rectangle", top: { _unit: "pixelsUnit", _value: 0 }, left: { _unit: "pixelsUnit", _value: 0 }, bottom: { _unit: "pixelsUnit", _value: 100 }, right: { _unit: "pixelsUnit", _value: 100 } } })
+      );
+      try {
+        const selBefore = await selection();
+        const chBefore = await channels();
+        await V.setOverlay({ mode: "zones" });
+        await V.setBurnEdges(100);
+        await V.setBurnSky({ amount: 100, depth: 0.5 });
+        const outside = await pixel(sdoc, patchX(8), PATCH_Y);
+        await V.setOverlay({ mode: "off" });
+        const corner = (await pixel(sdoc, W - 2, H - 2))[0];
+        const top = (await pixel(sdoc, W - 40, 4))[0];
+        const selAfter = await selection();
+        const chAfter = await channels();
+        ok(
+          "an active selection neither masks new layers nor gets lost",
+          selBefore !== "none" && nearRGB(outside, Z.ZONE_COLORS[8], 2) && corner < 225 && top < 200 && selAfter === selBefore && chAfter === chBefore,
+          `outside ${outside} corner ${corner} top ${top} selection ${selBefore}→${selAfter} channels ${chBefore}→${chAfter}`
+        );
+      } finally {
+        app.activeDocument = doc;
+      }
+    });
+
+    await check("bad values never reach Photoshop", async () => {
+      const results = [];
+      for (const op of [() => V.setOverlay({ mode: "nonsense" }), () => V.placeMarkers({ placements: [{ index: 1, zone: NaN }] }), () => V.removeLayer("nope")]) {
+        try {
+          await op();
+          results.push("accepted");
+        } catch (e) {
+          results.push(e instanceof V.VFError ? "refused" : "threw " + e.message);
+        }
+      }
+      await V.setBurnEdges("not a number");
+      await V.setDevelopment({ n: 99 });
+      const dev = child(doc, "dev").name;
+      ok("bad values never reach Photoshop", results.every((r) => r === "refused") && dev.endsWith("N+3"), `${results.join(",")} ${dev}`);
+      await V.setDevelopment({ n: 0 });
+    });
+
     await check("layers stay in pipeline order", async () => {
       await V.setOverlay({ mode: "zones" });
       await V.setBurnEdges(30);

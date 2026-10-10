@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **Large images are safe.** The optical average works in memory-bounded bands. On a 48-megapixel scan its peak memory fell from about 1.7 GB to about 250 MB, with identical results. Images too wide for the budget are refused with a clear message instead of risking Photoshop.
+- **Esc cancels long operations** (optical average, opportunities sheet, zone ladder). Photoshop shows a progress bar, and a cancelled operation leaves the image exactly as it was.
+- **Active selections no longer interfere.** A marquee you had active used to become the mask of the panel's new layers. It's now set aside during each operation and restored afterwards.
+- **No lost clicks.** Changing overlays, filters, development or burns while the panel is busy now applies your latest choice instead of dropping it, and double-clicking a heavy action can't start it twice.
+- **Clearer messages** when Photoshop is busy with a dialog, a text edit or a transform, or is older than 2024.
+
 ## 1.0.0 — 2026-10-10
 
 First release of the **Visualize First** Photoshop panel.
