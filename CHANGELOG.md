@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 — 2026-10-10
 
 - **Large images are safe.** The optical average works in memory-bounded bands. On a 48-megapixel scan its peak memory fell from about 1.7 GB to about 250 MB, with identical results. Images too wide for the budget are refused with a clear message instead of risking Photoshop.
 - **Esc cancels long operations** (optical average, opportunities sheet, zone ladder). Photoshop shows a progress bar, and a cancelled operation leaves the image exactly as it was.

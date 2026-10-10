@@ -38,11 +38,13 @@ Requires Photoshop 2024 (25.0) or later. It was developed and tested on Photosho
 
 **Option A: install the package**
 
+Download `visualize-first-1.1.0.ccx` from the [latest release](https://github.com/cmerritthoughton/zonesystemPSD/releases/latest), or build it yourself:
+
 ```bash
 npm run package
 ```
 
-This writes `dist/visualize-first-1.0.0.ccx`. Double-click it to install it through Creative Cloud. Plugins installed this way show an "unverified" notice because they don't come from the Adobe marketplace. Then open **Plugins ▸ Visualize First**.
+This writes `dist/visualize-first-1.1.0.ccx`. Double-click the `.ccx` to install it through Creative Cloud. Plugins installed this way show an "unverified" notice because they don't come from the Adobe marketplace. Then open **Plugins ▸ Visualize First**.
 
 **Option B: load for development**
 
