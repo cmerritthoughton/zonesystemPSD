@@ -923,7 +923,14 @@
             checkpoint(ctx, cells.length / total);
             await applyCurve(doc, group, "dev", devPoints(doc, n, scale), Z.devLabel(n));
             const pic = await readRGB8(doc, targetSize);
-            const { L } = await readLightness(doc, { targetSize: doc.width >= doc.height ? { width: 160 } : { height: 160 } });
+            // Captions describe the print, so measure it without the masses.
+            const showMasses = masses ? hide(group, ["overlay"]) : () => {};
+            let L;
+            try {
+              ({ L } = await readLightness(doc, { targetSize: doc.width >= doc.height ? { width: 160 } : { height: 160 } }));
+            } finally {
+              showMasses();
+            }
             cells.push({ filter: f, n, pic, analysis: Z.analyze(Z.zoneFractions(L, scale)) });
           }
         }

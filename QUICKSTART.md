@@ -170,4 +170,4 @@ Every **Reveal** is logged. The **Practice** tab shows your average miss over th
 
 Open the Creative Cloud desktop app, go to its plugin management area (**Manage plugins**), find **Visualize First** and choose **Uninstall**. Your images keep any **Visualize First** groups you saved; delete those groups if you no longer want them.
 
-For the reasoning behind each step, read [docs/TRAINING.md](docs/TRAINING.md).
+To see every step on a real photograph before you try your own, read the [walkthrough](docs/WALKTHROUGH.md). For the reasoning behind each step, read [docs/TRAINING.md](docs/TRAINING.md).

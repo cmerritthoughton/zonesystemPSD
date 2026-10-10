@@ -1,0 +1,107 @@
+{
+  "title": "Cliff dwelling",
+  "markers": [
+    {
+      "x": 570,
+      "y": 370,
+      "label": "Round tower in the alcove's shade",
+      "role": "Shadow anchor"
+    },
+    {
+      "x": 650,
+      "y": 960,
+      "label": "Sunlit plaza stone",
+      "role": "Light anchor"
+    },
+    {
+      "x": 400,
+      "y": 150,
+      "label": "Overhang ceiling, lit from below"
+    },
+    {
+      "x": 265,
+      "y": 800,
+      "label": "Shaded wall of the kiva"
+    },
+    {
+      "x": 470,
+      "y": 345,
+      "label": "Deep shade at the back of the alcove"
+    },
+    {
+      "x": 40,
+      "y": 60,
+      "label": "Blue sky"
+    },
+    {
+      "x": 110,
+      "y": 520,
+      "label": "Foliage"
+    }
+  ],
+  "filtersShown": [
+    "none",
+    "red",
+    "green",
+    "blue"
+  ],
+  "developments": [
+    -1,
+    0,
+    1,
+    2
+  ],
+  "placements": [
+    {
+      "key": "low",
+      "label": "Low key",
+      "detail": "#1 on II, #2 falls on VII",
+      "placements": [
+        {
+          "index": 1,
+          "zone": 2
+        },
+        {
+          "index": 2,
+          "zone": 7
+        }
+      ]
+    },
+    {
+      "key": "drama",
+      "label": "Expanded",
+      "detail": "#3 on III, #2 falls on IX",
+      "placements": [
+        {
+          "index": 3,
+          "zone": 3
+        },
+        {
+          "index": 2,
+          "zone": 9
+        }
+      ]
+    },
+    {
+      "key": "high",
+      "label": "High key",
+      "detail": "#1 on IV, #2 falls on IX",
+      "placements": [
+        {
+          "index": 1,
+          "zone": 4
+        },
+        {
+          "index": 2,
+          "zone": 9
+        }
+      ]
+    }
+  ],
+  "burn": {
+    "placement": "drama",
+    "edges": 70,
+    "sky": 70,
+    "depth": 0.4
+  }
+}
