@@ -386,6 +386,15 @@
       ok("opportunities sheet has every variant", r.variants.length === 20 && sheet.title.startsWith("Opportunities") && sheet.width === r.width, `${r.variants.length} ${sheet.title} ${sheet.width}x${sheet.height}`);
       const texts = sheet.layers.filter((l) => l.kind === "text").length;
       ok("opportunities sheet is labelled", texts === 2 + 4 + 5 + 20, `text layers ${texts}`);
+      const captions = (d) => d.layers.filter((l) => l.kind === "text" && /% dark$/.test(l.name)).map((l) => l.name).join("|");
+      const plainCaptions = captions(sheet);
+      app.activeDocument = doc;
+      await V.makeOpportunitiesSheet({ thumb: 120, masses: true });
+      const massesSheet = app.activeDocument;
+      const massesCaptions = captions(massesSheet);
+      ok("four-value masses don't change the sheet's captions", plainCaptions.length > 0 && massesCaptions === plainCaptions, `${plainCaptions.slice(0, 80)} vs ${massesCaptions.slice(0, 80)}`);
+      await massesSheet.closeWithoutSaving();
+      app.activeDocument = sheet;
       ok("sheet reports its source image", r.sourceId === doc.id, `${r.sourceId} vs ${doc.id}`);
       await V.applyVariant({ filterId: "green", n: -1, docId: doc.id });
       ok("applying a variant from the sheet returns to the source", app.activeDocument.id === doc.id && child(doc, "filter").name.includes("Green") && child(doc, "dev").name.endsWith("N−1"), `${app.activeDocument.title} ${child(doc, "filter").name} ${child(doc, "dev").name}`);
