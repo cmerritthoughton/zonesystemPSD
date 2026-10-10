@@ -53,13 +53,19 @@
       const fractions = [0.004, 0.02, 0.06, 0.12, 0.18, 0.22, 0.17, 0.12, 0.07, 0.03, 0.006];
       return { fractions, analysis: Z.analyze(fractions) };
     },
-    async makeOpticalAverage({ mm }) { put("optical", "Optical average", mm.toFixed(1) + " mm"); return { radius: (mm * 300) / 25.4 }; },
+    async makeOpticalAverage({ mm }) {
+      await delay(20);
+      put("optical", "Optical average", mm.toFixed(1) + " mm");
+      const wanted = (mm * doc.resolution) / 25.4;
+      return { radius: Math.min(wanted, 64), capped: wanted > 64, bands: 1 };
+    },
     async addLadder() { put("ladder", "Zone ladder"); },
     async removeLayer(key) { delete doc.layers[key]; },
     async clearMarkers() { doc.markers = []; },
     async convertToRGB() { doc.isGray = false; doc.isRGB = true; },
     async applyVariant({ filterId, n }) { put("filter", "Filter", Z.filterById(filterId).label); put("dev", "Development", Z.devLabel(n)); },
     async makeOpportunitiesSheet() {
+      window.__sheetCalls = (window.__sheetCalls || 0) + 1;
       await delay(120);
       const variants = [];
       for (const f of Z.SHEET_FILTERS) for (const n of Z.SHEET_DEVS) variants.push({ filterId: f, n });

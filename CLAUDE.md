@@ -23,6 +23,9 @@ tools/               run-harness.sh, package.sh, mock-ps.js, build-preview.js, m
 
 - Never edit the artist's own layers. Everything lives in the **Visualize First** group; child layers are named `VF · <Name> — <setting>` and kept in the documented pipeline order.
 - Every document change goes through `inDoc()` and is one history step. Measurements use `commit: false`, so they leave no trace.
+- Pixel work stays memory-bounded: plan bands with `Z.bandPlan` under a fixed budget, never allocate a full-resolution buffer, and `dispose()` every `imageData` in `finally`.
+- Long loops call `checkpoint(ctx, fraction)` so Esc cancels and the history rollback restores the document.
+- Sanitise every value with `Z.num`/`Z.safeScale` before it reaches batchPlay or the DOM.
 - Zones are equal steps of CIE L\*: on screen Zone V = L\* 50; in ink mode the scale runs from measured ink to measured paper. Measure through `getPixels({ colorSpace: "Lab" })`, never through the document's encoded values.
 - In training mode, nothing measured may be visible before the artist has written a visualization and made a prediction.
 - New overlay modes, filters or readings belong in `zones.js` as pure functions with unit tests, and are rendered by `ps.js`/`panel.js`.
@@ -35,6 +38,8 @@ tools/               run-harness.sh, package.sh, mock-ps.js, build-preview.js, m
 - Composite `getPixels` returns 16-bit (0–32768) RGBA. Never request `componentSize: 8`; normalise by array type.
 - Read `imageData` width, height and components *before* `dispose()`.
 - Gaussian Blur isn't available from scripts; use `Z.blurPixels`.
+- `putPixels` replaces the whole layer unless you pass `replace: false`.
+- Saving a selection to a channel is unavailable; use `imaging.getSelection`/`putSelection`.
 - A `.psjs` script stops after its first modal scope; the harness runs inside a single one.
 
 ## Quality gate

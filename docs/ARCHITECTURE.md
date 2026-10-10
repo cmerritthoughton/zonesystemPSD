@@ -30,10 +30,24 @@ Layer names carry the current setting (`VF · Filter — Red (#25)`, `VF · Deve
 
 `inDoc(name, fn, { commit, docId })` wraps every document change:
 
-- It runs `fn` inside `executeAsModal`, under one suspended-history entry, so each action is one undo step.
+- It runs `fn(doc, ctx)` inside `executeAsModal`, under one suspended-history entry, so each action is one undo step.
 - With `commit: false` (measuring) the history entry is rolled back, so the document is unchanged and history shows nothing.
+- Any failure, including Esc, also rolls back, so a failed or cancelled operation leaves no layers and no history step.
+- Before a committing operation, an active selection is copied (`imaging.getSelection`, over its own bounds only) and deselected, then put back afterwards (`imaging.putSelection`). This is needed because Photoshop builds a new adjustment layer's mask from the selection and clips gradients to it.
 - It restores the artist's layer selection afterwards.
 - With `docId` it switches to that document first. This lets the opportunities sheet apply a variant back to its source image.
+
+## Resource safety
+
+The plugin runs inside the artist's Photoshop, so it must never exhaust memory or appear hung.
+
+- **Bounded pixel work.** The optical average processes horizontal bands: each reads its rows plus a margin equal to the blur's reach (`Z.blurSupport`), blurs, and writes only its own rows. `Z.bandPlan` keeps each read under 4 million pixels (about 100 MB at the peak) and refuses images that can't fit, rather than allocating. Banded output is identical to a single pass. The blur radius is capped at 64 px. The zone ladder writes in chunks of at most 2 million pixels, and its strip is at most 600 px wide. Every other read is a small region or a downsampled composite.
+- **Measured on a 48-megapixel image** (Photoshop 2026, Apple silicon): the original unbanded optical average raised Photoshop's memory by about 1.66 GB at the peak; the banded version raises it by 110–250 MB, including the new layer's own pixels. Both take about 6 s.
+- **Progress and cancel.** Long loops call `checkpoint(ctx, fraction)` between steps. It reports progress (Photoshop shows a progress bar with Cancel) and throws when the artist presses Esc. The rollback above then restores the document.
+- **Every pixel buffer is freed.** `imageData.dispose()` runs in `finally` on every path, including errors and cancellation.
+- **Validated inputs.** Public operations sanitise every value (`Z.num`, `Z.safeScale`, known overlay, filter and layer keys) before it reaches batchPlay or the DOM. Zone-math loops skip non-finite values, so bad input can't spin forever.
+- **One operation at a time.** The panel runs one Photoshop operation at a time. Repeated setting changes (overlay, filter, development, burns) queue only the latest request, with its values captured when made; heavy actions ignore repeat clicks while busy.
+- **Plain-language failures.** Photoshop's "modal state" and cancel errors become messages an artist can act on. A missing imaging API (Photoshop before 2024) is reported as a version problem.
 
 ## Measurement
 
@@ -66,6 +80,8 @@ These were observed in Photoshop 2026 (27.10) on macOS while building the harnes
 | `getPixels` on a composite with layers returns 16-bit values (0–32768) plus alpha, even in an 8-bit document. Requesting `componentSize: 8` fails with "Could not fill". | Readers normalise by array type (`Uint8Array` → 255, `Uint16Array` → 32768) and never request a component size. |
 | `getPixels({ colorSpace: "Lab" })` works on composites. | Measurement is exact L\*. |
 | An image buffer's `width`, `height` and `components` read as undefined after `dispose()`. | Metadata is read before disposing. |
+| `imaging.putPixels` replaces the layer's entire contents unless `replace: false` is passed. | Banded and chunked writes always pass `replace: false`. |
+| Saving the selection to a channel (`duplicate` of the selection, or `make` channel from selection) is unavailable to plugins. | Selections are copied with `imaging.getSelection` and restored with `imaging.putSelection`. |
 | Gaussian Blur via `batchPlay` reported "not currently available" in every context tried from a UXP script. | The optical average is blurred in JavaScript (three box passes ≈ Gaussian) before `putPixels`. |
 | A UXP script (`.psjs`) stopped running once its first `executeAsModal` scope closed: later awaits never ran. | The harness runs entirely inside one modal scope and injects it with `setModalRunner`. The panel isn't affected. |
 | Inside a `.psjs` script, `documents.add()` and similar DOM creation calls return `null`. | The harness uses `app.activeDocument` after creating. `ps.js` creates layers with `batchPlay` and reads `activeLayers`. |

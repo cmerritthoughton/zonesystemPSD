@@ -281,6 +281,44 @@ test("panel flows", { skip: jsdom ? false : "jsdom not available" }, async (t) =
     p.close();
   });
 
+  await t.test("rapid setting changes queue the latest instead of dropping it", async () => {
+    const p = openPanel();
+    p.click(p.stepButton("reveal"));
+    await tick();
+    p.click(p.$("overlayModes").querySelector('[data-overlay="notan"]'));
+    p.click(p.$("overlayModes").querySelector('[data-overlay="four"]'));
+    p.click(p.$("overlayModes").querySelector('[data-overlay="zones"]'));
+    assert.match(p.$("status").textContent, /queued/);
+    await tick(200);
+    assert.equal(p.doc.layers.overlay.name, "VF · Overlay — Zones", "the last request wins");
+    assert.ok(p.$("overlayModes").querySelector('[data-overlay="zones"]').classList.contains("on"));
+    p.close();
+  });
+
+  await t.test("a double click can't start a heavy operation twice", async () => {
+    const p = openPanel();
+    p.w.__sheetCalls = 0;
+    p.click(p.stepButton("opportunities"));
+    p.click(p.$("makeSheet"));
+    p.click(p.$("makeSheet"));
+    assert.match(p.$("status").textContent, /Still working/);
+    await tick(300);
+    assert.equal(p.w.__sheetCalls, 1);
+    assert.equal(p.$("status").textContent, "The sheet is open as a new document.", "the finishing message survives");
+    p.close();
+  });
+
+  await t.test("a capped blur says so", async () => {
+    const p = openPanel();
+    p.doc.resolution = 1200;
+    p.click(p.stepButton("ink"));
+    p.set(p.$("mm"), 3, "input");
+    p.click(p.$("makeOptical"));
+    await tick(120);
+    assert.match(p.$("status").textContent, /Blurred at 64 px, the most this panel uses/);
+    p.close();
+  });
+
   await t.test("new markers appear without a manual refresh", async () => {
     const p = openPanel();
     p.click(p.stepButton("predict"));

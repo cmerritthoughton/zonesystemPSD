@@ -68,6 +68,8 @@ Install the [UXP Developer Tool](https://developer.adobe.com/photoshop/uxp/2022/
 
 Everything the panel makes lives in one layer group, **Visualize First**, at the top of the layer stack, and your own layers are never edited. Each action is a single history step. Measuring leaves no trace in history. The opportunities sheet opens as a new document.
 
+Long steps show Photoshop's progress bar, and <kbd>Esc</kbd> cancels them with nothing changed. Large images are processed in memory-bounded pieces. An active selection is set aside while the panel works and then restored.
+
 | Layer (top to bottom) | Purpose |
 |---|---|
 | VF · Overlay | Gradient map: zone map, isolations, value groupings |
@@ -116,9 +118,10 @@ npm run test:photoshop
 
 ### Test status
 
-- Zone math: 28 unit tests.
-- Panel flows: 13 tests in jsdom against a Photoshop stand-in.
-- Photoshop operations: 39 pixel-level checks in Photoshop 2026 (27.10). They cover RGB, Grayscale and 16-bit documents, overlays, filters, development, placement, burning, the optical average, the ladder and the opportunities sheet.
+- Zone math: 34 unit tests, including banded-versus-whole blur equality and bad-input guards.
+- Panel flows: 16 tests in jsdom against a Photoshop stand-in, including request queuing and double-click protection.
+- Photoshop operations: 44 pixel-level checks in Photoshop 2026 (27.10). They cover RGB, Grayscale and 16-bit documents, overlays, filters, development, placement, burning, the optical average (single and banded), the ladder, the opportunities sheet, cancellation, active selections and input validation.
+- Resource safety: on a 48-megapixel image, the optical average peaks about 250 MB above Photoshop's baseline, against about 1.7 GB before banding. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#resource-safety).
 - The panel's interface hasn't yet been exercised by hand inside Photoshop's own UXP runtime. Its operations have, through the harness. Please [open an issue](https://github.com/cmerritthoughton/zonesystemPSD/issues) if anything in the panel renders or behaves differently there.
 
 ## Credits

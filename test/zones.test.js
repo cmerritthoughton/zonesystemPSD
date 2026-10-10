@@ -297,3 +297,85 @@ test("blurring vertically as well as horizontally", () => {
   const col = (y) => data[y * w + 2];
   assert.ok(col(14) > 0 && col(15) < 32768, `${col(14)} ${col(15)}`);
 });
+
+test("num and safeScale turn bad input into safe defaults", () => {
+  assert.equal(Z.num(NaN, 0, 100, 50), 50);
+  assert.equal(Z.num("abc", 0, 100, 50), 50);
+  assert.equal(Z.num(undefined, 0, 100, 50), 50);
+  assert.equal(Z.num("", 0, 100, 50), 50);
+  assert.equal(Z.num("70", 0, 100, 50), 70);
+  assert.equal(Z.num(250, 0, 100, 50), 100);
+  assert.equal(Z.num(Infinity, 0, 100, 50), 50);
+  assert.equal(Z.safeScale({ black: NaN, white: 90 }), Z.SCREEN_SCALE);
+  assert.equal(Z.safeScale(Z.INK_SCALE), Z.INK_SCALE);
+});
+
+test("invalid scales and NaN bands can't hang the overlay builder", () => {
+  const start = Date.now();
+  assert.deepEqual(Z.bandsToStops([{ from: NaN, to: 400, rgb: null }, { from: 0, to: NaN, rgb: null }]), []);
+  const bad = Z.overlayStops("darks", { scale: { black: 50, white: 50 }, transfer: "bogus", split: NaN });
+  assert.deepEqual(bad, Z.overlayStops("darks", {}), "falls back to the screen scale and sRGB");
+  assert.ok(Date.now() - start < 200);
+});
+
+test("curve and histogram helpers survive bad input", () => {
+  assert.deepEqual(Z.developmentPairs(NaN, null), Z.developmentPairs(0));
+  assert.throws(() => Z.placementPairs([{ L: NaN, zone: 3 }]), /Couldn't read/);
+  assert.throws(() => Z.placementPairs([]), /Couldn't read/);
+  const fr = Z.zoneFractions([NaN, 50, Infinity], { black: 0, white: 0 });
+  assert.equal(fr[5], 1, "non-finite readings are skipped; a bad scale falls back");
+});
+
+test("blur support covers every box radius", () => {
+  assert.equal(Z.blurSupport(0), 0);
+  for (const sigma of [1, 3, 12, 64]) {
+    const support = Z.blurSupport(sigma);
+    assert.equal(support, Z.boxesForGauss(sigma).reduce((s, w) => s + (w - 1) / 2, 0));
+    assert.ok(support >= sigma && support <= 3 * sigma, `sigma ${sigma}: support ${support}`);
+  }
+});
+
+test("band plans cover every row once and stay within budget", () => {
+  const width = 500;
+  const height = 1234;
+  const margin = 20;
+  const budget = 60000;
+  const plan = Z.bandPlan({ width, height, margin, budget });
+  assert.ok(plan.length > 1);
+  let next = 0;
+  for (const b of plan) {
+    assert.equal(b.y0, next, "contiguous");
+    next = b.y1;
+    assert.ok((b.bottom - b.top) * width <= budget, "read stays within budget");
+    assert.equal(b.top, Math.max(0, b.y0 - margin));
+    assert.equal(b.bottom, Math.min(height, b.y1 + margin));
+  }
+  assert.equal(next, height, "every row written");
+  assert.equal(Z.bandPlan({ width, height: 10, margin, budget }).length, 1, "small images are one band");
+  assert.equal(Z.bandPlan({ width: 100000, height, margin: 200, budget }), null, "refuses what can't fit");
+  assert.equal(Z.bandPlan({ width: NaN, height, margin, budget }), null);
+});
+
+test("banded blurring matches blurring the whole image exactly", () => {
+  const width = 37;
+  const height = 211;
+  const comps = 3;
+  const sigma = 4.2;
+  let seed = 7;
+  const rand = () => ((seed = (seed * 16807) % 2147483647) % 65536) / 2;
+  const src = new Uint16Array(width * height * comps).map(() => rand());
+  const whole = Z.blurPixels(src.slice(), width, height, comps, comps, sigma);
+  const margin = Z.blurSupport(sigma);
+  const plan = Z.bandPlan({ width, height, margin, budget: width * (2 * margin + 40) });
+  assert.ok(plan.length >= 4, `${plan.length} bands`);
+  const banded = new Uint16Array(src.length);
+  for (const b of plan) {
+    const block = src.slice(b.top * width * comps, b.bottom * width * comps);
+    Z.blurPixels(block, width, b.bottom - b.top, comps, comps, sigma);
+    const from = (b.y0 - b.top) * width * comps;
+    banded.set(block.subarray(from, from + (b.y1 - b.y0) * width * comps), b.y0 * width * comps);
+  }
+  let worst = 0;
+  for (let i = 0; i < whole.length; i++) worst = Math.max(worst, Math.abs(whole[i] - banded[i]));
+  assert.ok(worst <= 1, `largest difference ${worst}`);
+});
