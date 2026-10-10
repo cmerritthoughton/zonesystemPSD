@@ -1,0 +1,382 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Visualize First</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 8px 10px 18px;
+        color: var(--uxp-host-text-color, #e6e6e6);
+        background: var(--uxp-host-background-color, #323232);
+        font-size: var(--uxp-host-font-size, 12px);
+        font-family: var(--uxp-host-font-family, -apple-system, "Segoe UI", sans-serif);
+        line-height: 1.4;
+      }
+      h2 {
+        font-size: 14px;
+        margin: 6px 0 4px;
+      }
+      h3 {
+        font-size: 12px;
+        margin: 14px 0 4px;
+        color: var(--uxp-host-text-color-secondary, #b4b4b4);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      p {
+        margin: 4px 0;
+      }
+      label {
+        display: block;
+        margin: 10px 0 3px;
+      }
+      label.check {
+        display: flex;
+        align-items: center;
+        margin: 8px 0 2px;
+      }
+      label.check input {
+        margin-right: 6px;
+      }
+      .hint {
+        color: var(--uxp-host-text-color-secondary, #a8a8a8);
+      }
+      .small {
+        font-size: 11px;
+      }
+      textarea {
+        width: 100%;
+        box-sizing: border-box;
+        min-height: 54px;
+      }
+      select,
+      input[type="range"] {
+        width: 100%;
+        box-sizing: border-box;
+      }
+      input[type="number"] {
+        width: 56px;
+      }
+      button {
+        margin: 6px 6px 0 0;
+        padding: 3px 9px;
+        border-radius: 4px;
+        border: 1px solid var(--uxp-host-border-color, #5a5a5a);
+        background: transparent;
+        color: inherit;
+        font-size: inherit;
+        cursor: pointer;
+      }
+      button.cta {
+        background: var(--uxp-host-link-text-color, #378ef0);
+        border-color: var(--uxp-host-link-text-color, #378ef0);
+        color: #fff;
+      }
+      button:disabled {
+        opacity: 0.45;
+        cursor: default;
+      }
+      button.on {
+        background: var(--uxp-host-link-text-color, #378ef0);
+        border-color: var(--uxp-host-link-text-color, #378ef0);
+        color: #fff;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .line {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        margin: 6px 0;
+      }
+      .line > * {
+        margin-right: 6px;
+      }
+      .line select {
+        width: auto;
+      }
+      .seg {
+        display: flex;
+        flex-wrap: wrap;
+      }
+      .seg button {
+        margin: 4px 4px 0 0;
+        padding: 2px 7px;
+      }
+      #steps {
+        display: flex;
+        flex-wrap: wrap;
+        border-bottom: 1px solid var(--uxp-host-border-color, #4a4a4a);
+        padding-bottom: 6px;
+        margin-bottom: 4px;
+      }
+      #steps button {
+        margin: 3px 3px 0 0;
+        padding: 2px 6px;
+      }
+      #docline {
+        color: var(--uxp-host-text-color-secondary, #a8a8a8);
+        margin-bottom: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      #overlayBar {
+        margin-top: 14px;
+        padding-top: 8px;
+        border-top: 1px solid var(--uxp-host-border-color, #4a4a4a);
+      }
+      .mrow {
+        display: flex;
+        align-items: center;
+        margin: 5px 0;
+      }
+      .mrow > * {
+        margin-right: 6px;
+      }
+      .mrow select {
+        width: auto;
+        min-width: 110px;
+      }
+      .mrow .grow {
+        flex: 1;
+      }
+      .chip {
+        display: inline-block;
+        min-width: 26px;
+        padding: 1px 3px;
+        border-radius: 3px;
+        text-align: center;
+        font-size: 11px;
+        font-weight: bold;
+      }
+      .quote {
+        font-style: italic;
+        margin: 6px 0 2px;
+      }
+      .bars {
+        display: flex;
+        align-items: flex-end;
+        height: 84px;
+        margin-top: 8px;
+      }
+      .bar {
+        flex: 1;
+        margin-right: 2px;
+        border-radius: 2px 2px 0 0;
+      }
+      .barlabels {
+        display: flex;
+      }
+      .barlabels span {
+        flex: 1;
+        margin-right: 2px;
+        text-align: center;
+        font-size: 9px;
+        color: var(--uxp-host-text-color-secondary, #a8a8a8);
+      }
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        margin-top: 6px;
+      }
+      .legend span {
+        width: 24px;
+        margin: 0 2px 2px 0;
+        padding: 1px 0;
+        text-align: center;
+        font-size: 9px;
+        border-radius: 2px;
+      }
+      ul {
+        margin: 4px 0;
+        padding-left: 16px;
+      }
+      li {
+        margin: 4px 0;
+      }
+      .status {
+        margin-top: 10px;
+        min-height: 16px;
+        color: var(--uxp-host-text-color-secondary, #a8a8a8);
+      }
+      .status.error {
+        color: #ff8a80;
+      }
+      .entry {
+        margin: 6px 0;
+        padding-bottom: 6px;
+        border-bottom: 1px solid var(--uxp-host-border-color, #444);
+      }
+      .muted {
+        color: var(--uxp-host-text-color-secondary, #a8a8a8);
+      }
+      .box {
+        border: 1px solid var(--uxp-host-border-color, #555);
+        border-radius: 4px;
+        padding: 6px 8px;
+        margin: 8px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="docline">No image open</div>
+    <div id="steps"></div>
+
+    <section data-step="visualize">
+      <h2>Look before you measure</h2>
+      <p class="hint">Adams decided what the print should feel like before he made the exposure. Study the image, then write the drawing you want in one sentence, before anything is measured.</p>
+      <label for="sentence">What is the light doing, and how should it feel?</label>
+      <textarea id="sentence" rows="3" placeholder="Late storm light breaking onto the tower; the street below still in rain."></textarea>
+      <label>The print you want</label>
+      <div class="seg" id="intent"></div>
+      <p class="hint small" id="intentHint"></p>
+      <label class="check"><input type="checkbox" id="mono" /> Monochrome preview</label>
+      <p class="hint small">Try to see the values while the image is still in colour; that's the skill. Switch to monochrome when you're ready to predict.</p>
+      <div class="row">
+        <button id="toPredict" class="cta">Next: predict</button>
+        <button id="fresh">Start fresh</button>
+      </div>
+      <p class="hint small">Start fresh clears this image's guesses and sets the print back to neutral: no filter, normal development, no burning.</p>
+    </section>
+
+    <section data-step="predict">
+      <h2>Place your anchors</h2>
+      <p class="hint">Choose the Color Sampler tool (I) and click the image. Make #1 the shadow that must keep its texture and #2 the brightest light that must keep its texture. Add any other spots you're curious about, then guess each one's zone.</p>
+      <div id="markerList"></div>
+      <label for="darkGuess">How much of the frame is dark (Zones 0–IV)? <b id="darkGuessVal">50%</b></label>
+      <input type="range" id="darkGuess" min="0" max="100" step="5" value="50" />
+      <div class="row">
+        <button id="reveal" class="cta">Reveal</button>
+        <button id="clearMarkers">Clear markers</button>
+      </div>
+      <p class="hint small" id="revealGate"></p>
+    </section>
+
+    <section data-step="reveal">
+      <h2>What the meter says</h2>
+      <div id="revealBody"></div>
+    </section>
+
+    <section data-step="interpret">
+      <h2>Perform the score</h2>
+      <p class="hint">The scene is the score; the print is your performance. Choose a filter, then place one value and develop the rest, the way Adams used exposure and development.</p>
+      <label for="filter">Filter</label>
+      <select id="filter"></select>
+      <p class="hint small" id="filterNote"></p>
+      <label>Development: Zone III held, highlights moved</label>
+      <div class="seg" id="devs"></div>
+      <h3>Place and develop</h3>
+      <div class="line">
+        <span>Place marker</span><select id="placeA"></select><span>on Zone</span><select id="placeAZone"></select>
+      </div>
+      <label class="check"><input type="checkbox" id="useB" checked /> Also develop with a second marker</label>
+      <div class="line" id="placeBLine">
+        <span>Let marker</span><select id="placeB"></select><span>fall on Zone</span><select id="placeBZone"></select>
+      </div>
+      <button id="place">Place</button>
+      <p id="placeResult"></p>
+      <h3>Print</h3>
+      <label for="burnEdges">Burn the edges <b id="burnEdgesVal">0%</b></label>
+      <input type="range" id="burnEdges" min="0" max="100" step="5" value="0" />
+      <label for="burnSky">Burn the sky <b id="burnSkyVal">0%</b></label>
+      <input type="range" id="burnSky" min="0" max="100" step="5" value="0" />
+      <label for="skyDepth">The sky burn reaches</label>
+      <select id="skyDepth">
+        <option value="0.25">A quarter of the way down</option>
+        <option value="0.4" selected>Two-fifths of the way down</option>
+        <option value="0.6">Three-fifths of the way down</option>
+      </select>
+      <div class="row"><button id="resetPrint">Neutral print</button></div>
+    </section>
+
+    <section data-step="opportunities">
+      <h2>See the opportunities</h2>
+      <p class="hint">Twenty performances of the same scene: five filters across four developments, in a new document. Look for the one that matches your sentence, and for the one that surprises you.</p>
+      <label class="check"><input type="checkbox" id="sheetBurns" checked /> Include my burning</label>
+      <label class="check"><input type="checkbox" id="sheetMasses" /> Show each as four value masses</label>
+      <label for="sheetSize">Thumbnail size</label>
+      <select id="sheetSize">
+        <option value="240">Small</option>
+        <option value="320" selected>Medium</option>
+        <option value="420">Large</option>
+      </select>
+      <div class="row"><button id="makeSheet" class="cta">Make opportunities sheet</button></div>
+      <div id="variantBox" class="box" style="display: none">
+        <label for="variant" id="variantLabel">Apply a variant</label>
+        <select id="variant"></select>
+        <div class="row"><button id="applyVariant">Apply to the image</button></div>
+      </div>
+    </section>
+
+    <section data-step="ink">
+      <h2>Pen and ink</h2>
+      <p class="hint">Check what your marks actually produce. Scan the drawing, blur a copy to the distance it will be seen from, and read the zones.</p>
+      <div id="grayNotice" class="box" style="display: none">
+        <p>This scan is Grayscale. Light/shadow, four values and ink families work as they are; the colour overlays need RGB.</p>
+        <button id="toRGB">Convert to RGB</button>
+      </div>
+      <h3>Value scale</h3>
+      <div class="seg" id="scaleMode">
+        <button data-scale="screen">Screen</button>
+        <button data-scale="ink">Ink on paper</button>
+      </div>
+      <div class="line" id="inkScaleRow">
+        <span>Ink black L*</span><input type="number" id="inkBlack" min="0" max="60" step="0.5" />
+        <span>Paper L*</span><input type="number" id="inkWhite" min="40" max="100" step="0.5" />
+      </div>
+      <p class="hint small" id="scaleHint"></p>
+      <button id="calibrate">Measure from markers: #1 solid ink, #2 bare paper</button>
+      <h3>Optical average</h3>
+      <label for="mm">Merge distance <b id="mmVal">1.0 mm</b></label>
+      <input type="range" id="mm" min="0.2" max="3" step="0.1" value="1" />
+      <p class="hint small" id="mmPx"></p>
+      <div class="row"><button id="makeOptical">Blur a copy</button><button id="removeOptical">Remove</button></div>
+      <h3>Markers</h3>
+      <div class="row"><button id="readInk">Read markers</button></div>
+      <div id="inkReadout"></div>
+      <h3>Zone ladder</h3>
+      <p class="hint small">An eleven-step strip down the right edge, for comparing values side by side. Under the zone overlay it doubles as a legend.</p>
+      <div class="row"><button id="addLadder">Add ladder</button><button id="removeLadder">Remove</button></div>
+    </section>
+
+    <section data-step="practice">
+      <h2>Practice</h2>
+      <div id="logStats"></div>
+      <div id="logList"></div>
+      <div class="row"><button id="exportLog">Export CSV</button><button id="clearLog">Clear log</button></div>
+      <h3>Settings</h3>
+      <label class="check"><input type="checkbox" id="training" /> Training mode</label>
+      <p class="hint small">Keeps measurements hidden until you've written a visualization and made a prediction.</p>
+      <label for="spot">Meter spot</label>
+      <select id="spot">
+        <option value="spot">1° spot meter (about 2% of the frame)</option>
+        <option value="small">5 × 5 pixels</option>
+        <option value="pixel">Single pixel</option>
+      </select>
+    </section>
+
+    <div id="overlayBar">
+      <h3>Overlay</h3>
+      <div class="seg" id="overlayModes"></div>
+      <p class="hint small" id="overlayHint"></p>
+      <div class="legend" id="legend"></div>
+      <div id="splitRow">
+        <label for="split">Shadow is everything below <b id="splitVal">Zone VI</b></label>
+        <input type="range" id="split" min="1" max="10" step="1" value="6" />
+      </div>
+      <label for="opacity">Overlay opacity <b id="opacityVal">100%</b></label>
+      <input type="range" id="opacity" min="10" max="100" step="5" value="100" />
+    </div>
+
+    <div id="status" class="status"></div>
+
+    <script src="js/zones.js"></script>
+    <script src="js/ps.js"></script>
+    <script src="js/panel.js"></script>
+  </body>
+</html>
