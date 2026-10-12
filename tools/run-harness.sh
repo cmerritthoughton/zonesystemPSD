@@ -12,7 +12,7 @@ cat "$ROOT/plugin/js/zones.js" "$ROOT/plugin/js/ps.js" "$ROOT/test/ps-harness.js
 ps() { osascript -e "tell application \"$APP\" to do javascript \"$1\""; }
 
 # Close leftovers from an earlier run.
-ps "for (var i = app.documents.length - 1; i >= 0; i--) { var n = app.documents[i].name; if (/^VF_HARNESS|^Opportunities — VF_HARNESS/.test(n)) app.documents[i].close(SaveOptions.DONOTSAVECHANGES); } 'ok'" >/dev/null
+ps "for (var i = app.documents.length - 1; i >= 0; i--) { var n = app.documents[i].name; if (n.indexOf('VF_HARNESS') === 0 || n.indexOf('Opportunities — VF_HARNESS') === 0) app.documents[i].close(SaveOptions.DONOTSAVECHANGES); } 'ok'" >/dev/null
 
 open -a "$APP" "$OUT/harness.psjs"
 
@@ -23,8 +23,29 @@ for _ in $(seq 1 90); do
   if [ -n "$RES" ]; then break; fi
 done
 
-ps "for (var i = app.documents.length - 1; i >= 0; i--) { var n = app.documents[i].name; if (/^VF_HARNESS|^Opportunities — VF_HARNESS/.test(n)) app.documents[i].close(SaveOptions.DONOTSAVECHANGES); } 'ok'" >/dev/null
+ps "for (var i = app.documents.length - 1; i >= 0; i--) { var n = app.documents[i].name; if (n.indexOf('VF_HARNESS') === 0 || n.indexOf('Opportunities — VF_HARNESS') === 0) app.documents[i].close(SaveOptions.DONOTSAVECHANGES); } 'ok'" >/dev/null
 
 if [ -z "${RES:-}" ]; then echo "No results after 180 s"; exit 2; fi
 echo "$RES" | tr '\r' '\n'
+
+# The walkthrough generator recognises its documents by name in ExtendScript,
+# whose regex engine once mishandled this. Checked in Photoshop's own engine;
+# creates no documents.
+HOSTJSX="$ROOT/tools/walkthrough-host.jsx"
+CLASSIFY="$(osascript -e "tell application \"$APP\" to do javascript file (POSIX file \"$HOSTJSX\") with arguments {\"classify\", \"Cliff dwelling\", \"VF_FIG_01-scene-markers\", \"VF_WALK_RESULTS\", \"Cliff dwelling\", \"Opportunities — Cliff dwelling\", \"Cliff dwelling copy\", \"Opportunities — My photo\", \"My photo.psd\"}" | tr '\r' '\n')"
+EXPECTED="VF_FIG_01-scene-markers=true
+VF_WALK_RESULTS=true
+Cliff dwelling=true
+Opportunities — Cliff dwelling=true
+Cliff dwelling copy=false
+Opportunities — My photo=false
+My photo.psd=false"
+if [ "$CLASSIFY" = "$EXPECTED" ]; then
+  echo "PASS walkthrough generator recognises only its own documents"
+else
+  echo "FAIL walkthrough generator document matching:"
+  echo "$CLASSIFY"
+  exit 1
+fi
+
 echo "$RES" | tr '\r' '\n' | grep -q '^SUMMARY .* 0 failed' 

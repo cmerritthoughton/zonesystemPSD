@@ -15,7 +15,8 @@ plugin/js/zones.js   pure zone math; no Photoshop, runs in Node and UXP
 plugin/js/ps.js      every Photoshop operation (batchPlay, imaging API)
 plugin/js/panel.js   panel state, rendering, events; talks to Photoshop only via ps.js
 plugin/index.html    panel markup and styles; loads the three files as plain scripts
-test/                zones.test.js (Node), panel.test.js (jsdom + tools/mock-ps.js), ps-harness.js (real Photoshop)
+test/                zones.test.js (Node), panel.test.js (jsdom + tools/mock-ps.js),
+                     make-walkthrough.test.js (generator script, fake Photoshop), ps-harness.js (real Photoshop)
 tools/               run-harness.sh, package.sh, mock-ps.js, build-preview.js, make-icons.py
 ```
 
@@ -40,6 +41,7 @@ tools/               run-harness.sh, package.sh, mock-ps.js, build-preview.js, m
 - Gaussian Blur isn't available from scripts; use `Z.blurPixels`.
 - `putPixels` replaces the whole layer unless you pass `replace: false`.
 - Saving a selection to a channel is unavailable; use `imaging.getSelection`/`putSelection`.
+- In ExtendScript (`.jsx`), don't match document names with regex alternation; it can silently fail. Use plain prefix or equality checks.
 - A `.psjs` script stops after its first modal scope; the harness runs inside a single one.
 
 ## Quality gate
