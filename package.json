@@ -8,7 +8,7 @@
     "url": "https://github.com/cmerritthoughton/zonesystemPSD.git"
   },
   "scripts": {
-    "test": "node --test --test-force-exit test/zones.test.js test/panel.test.js",
+    "test": "node --test --test-force-exit test/zones.test.js test/panel.test.js test/make-walkthrough.test.js",
     "test:photoshop": "tools/run-harness.sh",
     "package": "tools/package.sh",
     "icons": "python3 tools/make-icons.py",
