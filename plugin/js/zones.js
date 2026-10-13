@@ -390,40 +390,64 @@
   const pct = (v) => Math.round(v * 100) + "%";
 
   // Concrete moves from the scene as measured toward the print visualized.
-  function suggestions(intent, a) {
+  // Concrete moves from the scene as measured toward the print visualized.
+  // Each move is advice text plus one-click tries the panel can apply:
+  //   { type: "place", index, zone } · { type: "dev", n } · { type: "filter", id }
+  //   { type: "burnEdges", amount } · { type: "goto", step }
+  // ctx.shadowZone is marker #1's measured zone (or null); ctx.rgb says
+  // whether colour filters apply.
+  function moves(intent, a, { shadowZone = null, rgb = true } = {}) {
     const out = [];
+    const add = (text, tries) => out.push({ text, tries: tries.filter(Boolean) });
+    const place = (zone) => {
+      if (!Number.isFinite(shadowZone)) return null;
+      const z = clamp(Math.round(zone), 0, 10);
+      return Math.round(shadowZone) === z ? null : { label: `Place #1 on Zone ${ROMAN[z]}`, action: { type: "place", index: 1, zone: z } };
+    };
+    const dev = (n) => ({ label: `Try ${devLabel(n)}`, action: { type: "dev", n } });
+    const burn = { label: "Burn the edges", action: { type: "burnEdges", amount: 50 } };
     if (intent === "low" && a.dark < 0.6) {
-      out.push(
-        `Only ${pct(a.dark)} of the frame is dark. A low-key print wants most of it in Zones 0–IV: place your shadow anchor a zone lower, burn the edges, and darken the sky (red filter if it is blue).`
+      add(
+        `Only ${pct(a.dark)} of the frame is dark. A low-key print wants most of it in Zones 0–IV: place your shadow anchor a zone lower, burn the edges, and darken the sky (red filter if it is blue).`,
+        [place(Math.round(shadowZone) - 1), burn, rgb ? { label: "Red filter", action: { type: "filter", id: "red" } } : null]
       );
     }
     if (intent === "high" && a.light < 0.6) {
-      out.push(
-        `Only ${pct(a.light)} of the frame is light. For a high-key print, place your shadow anchor on Zone IV or V so the whole scale lifts, and use N−1 to keep the highlights textured.`
+      add(
+        `Only ${pct(a.light)} of the frame is light. For a high-key print, place your shadow anchor on Zone IV or V so the whole scale lifts, and use N−1 to keep the highlights textured.`,
+        [Number.isFinite(shadowZone) && shadowZone < 4 ? place(4) : null, dev(-1)]
       );
     }
     if (intent === "full" && !a.hasBlack) {
-      out.push("Nothing reaches Zone 0–I. Give the image one deliberate black: place the darkest accent lower, or expand with N+1.");
+      add("Nothing reaches Zone 0–I. Give the image one deliberate black: place the darkest accent lower, or expand with N+1.", [dev(1)]);
     }
     if (intent === "full" && !a.hasWhite) {
-      out.push("Nothing reaches Zone IX–X. Expand with N+1, or burn down around your focal light so it reads brighter by contrast.");
+      add("Nothing reaches Zone IX–X. Expand with N+1, or burn down around your focal light so it reads brighter by contrast.", [dev(1), burn]);
     }
     if (a.middle > 0.5) {
-      out.push(
-        `${pct(a.middle)} of the frame sits in Zones IV–VI, where separation turns to mud. Expand (N+1), or fold the background into one value to free up steps for the subject.`
+      add(
+        `${pct(a.middle)} of the frame sits in Zones IV–VI, where separation turns to mud. Expand (N+1), or fold the background into one value to free up steps for the subject.`,
+        [dev(1)]
       );
     }
     if (a.dark > 0.3 && a.texturedDark < 0.05) {
-      out.push(
-        `Little of the dark area keeps texture (Zones II–III are ${pct(a.texturedDark)} of the frame). Place your shadow anchor on Zone III so darks read as shadow, not dead black.`
+      add(
+        `Little of the dark area keeps texture (Zones II–III are ${pct(a.texturedDark)} of the frame). Place your shadow anchor on Zone III so darks read as shadow, not dead black.`,
+        [place(3)]
       );
     }
     if (a.dead > 0.3) {
-      out.push(`${pct(a.dead)} of the frame has no texture at all (0–I or IX–X). That is chalk and soot unless it is a deliberate graphic choice.`);
+      add(`${pct(a.dead)} of the frame has no texture at all (0–I or IX–X). That is chalk and soot unless it is a deliberate graphic choice.`, [dev(-1)]);
     }
-    if (!out.length) out.push("The scene already supports the print you visualized. Now decide where to spend separation: compress what doesn't matter, expand what does.");
+    if (!out.length) {
+      add("The scene already supports the print you visualized. Now decide where to spend separation: compress what doesn't matter, expand what does.", [
+        { label: "Compare 20 performances", action: { type: "goto", step: "compare" } },
+      ]);
+    }
     return out;
   }
+
+  const suggestions = (intent, a) => moves(intent, a).map((m) => m.text);
 
   // ---- Practice scoring ---------------------------------------------------
 
@@ -631,6 +655,7 @@
     meterAverage,
     analyze,
     suggestions,
+    moves,
     scorePredictions,
     practiceStats,
     logToCsv,

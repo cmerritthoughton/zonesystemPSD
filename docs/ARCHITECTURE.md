@@ -6,7 +6,7 @@
 |---|---|---|
 | `plugin/js/zones.js` | Pure functions: zone scales, L\* and tone curves, gradient-map stops, development, placement and burn curves, zone histograms, scoring, practice stats, CSV, blur. | nothing (runs in Node and UXP) |
 | `plugin/js/ps.js` | Photoshop operations. Everything that touches a document goes through here. | `zones.js`, `require("photoshop")` |
-| `plugin/js/panel.js` | Panel state, rendering and events. Talks to Photoshop only through `ps.js`. | `zones.js`, `ps.js`, `localStorage`, `require("uxp")` for file export |
+| `plugin/js/panel.js` | The guided sequence: per-image progress, step locks, checklists, Next prompts and forward/back actions, rendering and events. Talks to Photoshop only through `ps.js`. | `zones.js`, `ps.js`, `localStorage`, `require("uxp")` for file export |
 
 `index.html` loads the three files with plain `<script>` tags. Each one exposes a global (`VFZones`, `VFps`), so the same files can be concatenated into a UXP script for the Photoshop harness or loaded into jsdom for the panel tests.
 
@@ -92,5 +92,5 @@ These were observed in Photoshop 2026 (27.10) on macOS while building the harnes
 ## Testing layers
 
 1. `test/zones.test.js`: the zone math, including overlay stops mapped through a simulated gradient map, curve constraints (inputs 0–255, at least 3 apart, at most 14 points), the N model, placement and blur.
-2. `test/panel.test.js`: the real `index.html` and `panel.js` in jsdom against `tools/mock-ps.js`. It covers training gates, reveal scoring and logging, overlays, interpret controls, the opportunities hand-off, ink calibration, the practice log and polling.
+2. `test/panel.test.js`: the real `index.html` and `panel.js` in jsdom against `tools/mock-ps.js`. It covers the guided steps (stepper locks and reasons, self-ticking checklists, Next prompts, the Color Sampler button, one-click moves, the live readout, per-image steps, the sheet hand-off), plus reveal scoring and logging, overlays, interpret controls, ink calibration, the practice log and polling.
 3. `test/ps-harness.js`: real Photoshop. It generates a test chart (an eleven-patch zone wedge plus sky, red and green patches with markers), runs every operation, and checks pixels and layer state. `tools/run-harness.sh` bundles it with `zones.js` and `ps.js`, runs it, and reads the results back from a document's caption.

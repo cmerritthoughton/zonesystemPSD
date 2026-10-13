@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- **Guided steps.** The panel now leads you through five numbered steps:
+  - A stepper shows what's done, where you are and what's locked; a locked step tells you why.
+  - Each step has a checklist that ticks itself, a **Next** prompt naming the one thing to do, and forward and back buttons that say what's still missing.
+  - **Pick the Color Sampler tool** selects the tool for you, and Predict guides you marker by marker.
+  - Reveal's advice now comes with one-click moves (*Place #1 on Zone II*, *Try N+1*, *Burn the edges*, *Red filter*) that apply the change and open Interpret.
+  - Interpret shows **Your print now**: the zones after every change, against the scene as metered.
+  - Each image remembers its place in the steps, and the opportunities sheet stays connected to the image it came from.
+  - A short introduction appears the first time; Ink and Practice & settings are now tools beside the steps.
+
 ## 1.1.1 — 2026-10-10
 
 - **Fixed:** with **Show each as four value masses** ticked, the opportunities sheet's captions described the simplified masses instead of the print. They now match the normal sheet.

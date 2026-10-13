@@ -153,7 +153,7 @@ Adams burned skies and print edges on nearly every print. Here, burning the edge
 - **holds the eye in the village:** the frame's corners darken, so the bright centre reads as light;
 - **deepens the lid:** dark share rises from 52% to 54%.
 
-## 5. Opportunities: see them all at once
+## 5. Compare: the opportunities sheet
 
 ![The opportunities sheet: five filters by four developments](images/walkthrough/09-opportunities.jpg)
 

@@ -822,6 +822,15 @@
     });
   }
 
+  // Switch Photoshop to the Color Sampler tool, so the next click on the
+  // image places a marker. Changes no document, so no history step.
+  function selectColorSamplerTool() {
+    requireApis();
+    return runModal("Color Sampler tool", async () => {
+      await bp({ _obj: "select", _target: [{ _ref: "colorSamplerTool" }] });
+    });
+  }
+
   function convertToRGB() {
     return inDoc("Convert to RGB", async () => {
       await bp({ _obj: "convertMode", to: { _class: "RGBColorMode" } });
@@ -1021,6 +1030,7 @@
     addLadder,
     removeLayer,
     clearMarkers,
+    selectColorSamplerTool,
     convertToRGB,
     applyVariant,
     makeOpportunitiesSheet,

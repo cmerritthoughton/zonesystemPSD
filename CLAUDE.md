@@ -30,6 +30,7 @@ tools/               run-harness.sh, package.sh, mock-ps.js, build-preview.js, m
 - In training mode, nothing measured may be visible before the artist has written a visualization and made a prediction.
 - New overlay modes, filters or readings belong in `zones.js` as pure functions with unit tests, and are rendered by `ps.js`/`panel.js`.
 - UI text is artist-facing: Adams's and photographers' vocabulary (zones, placement, development, burning, key), never implementation terms.
+- The panel is a guided sequence. A new feature belongs to one step: it gets a checklist item, if it matters, a line in that step's **Next** prompt, and a reason in its forward button when it blocks progress. Tools (Ink, Practice & settings) sit outside the sequence.
 
 ## Photoshop gotchas (details in docs/ARCHITECTURE.md)
 
