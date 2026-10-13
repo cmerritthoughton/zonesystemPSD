@@ -24,15 +24,22 @@ The panel turns each of those into something you practise and get scored on. [do
 
 ## The loop
 
+The panel is a guided sequence of five numbered steps. A stepper across the top shows which steps are done, which one you're on and which are still locked, and a locked step says why. Every step has a checklist that ticks itself and a **Next** prompt naming the one thing to do now; it offers a button when the panel can do it for you (for example, picking the Color Sampler tool). At the bottom of each step, a button moves forward or back, with the reason when forward is blocked.
+
 | Step | You do | The panel does |
 |---|---|---|
-| **Visualize** | Write one sentence about the light and the feeling; choose low key, full scale or high key. | Keeps all measurements hidden (training mode). |
-| **Predict** | Put Color Sampler markers on the image (#1 = textured shadow, #2 = textured light) and guess each one's zone. Estimate how much of the frame is dark. | Locks **Reveal** until you've committed. |
-| **Reveal** | Compare. | Meters each marker like a 1° spot meter, scores your guesses and your bias, charts the frame's zones, reads key and range, and suggests moves toward your visualization. Shows a false-colour zone map. |
-| **Interpret** | Choose a filter, a development (N−2 … N+2), or **place** marker #1 on a zone and let #2 fall on another. Burn edges and sky. | Builds the print as non-destructive adjustment layers and tells you the exposure shift and N you just chose. |
-| **Opportunities** | Look across many interpretations at once. | Renders a sheet of 20 performances (5 filters × 4 developments), each captioned with its key, range and dark share. Apply any of them back to the image. |
+| **1 Visualize** | Write one sentence about the light and the feeling; choose low key, full scale or high key. | Keeps all measurements hidden (training mode). |
+| **2 Predict** | Put Color Sampler markers on the image (#1 = textured shadow, #2 = textured light) and guess each one's zone. Estimate how much of the frame is dark. | Picks the Color Sampler tool for you, prompts marker by marker, and keeps **Reveal** locked until you've committed. |
+| **3 Reveal** | Compare, then choose a move. | Meters each marker like a 1° spot meter, scores your guesses and your bias, charts the frame's zones, and reads key and range. Turns its advice into one-click moves (*Place #1 on Zone II*, *Try N+1*, *Burn the edges*…). Shows a false-colour zone map. |
+| **4 Interpret** | Choose a filter, a development (N−2 … N+2), or **place** marker #1 on a zone and let #2 fall on another. Burn edges and sky. | Builds the print as non-destructive adjustment layers, reports the exposure shift and N you chose, and shows **Your print now**: the zones after every change, against the scene as metered. |
+| **5 Compare** | Look across many interpretations at once. | Renders an opportunities sheet of 20 performances (5 filters × 4 developments), each captioned with its key, range and dark share. Apply any of them back to the image. |
+
+Two **tools** sit beside the sequence:
+
+| Tool | You do | The panel does |
+|---|---|---|
 | **Ink** | Check a scanned drawing. | Blurs a copy to a viewing distance (optical average), measures zones against *your* ink black and paper white, estimates ink coverage, and adds a zone ladder. |
-| **Practice** | Watch yourself improve. | Logs every session: average miss, bias (do you see values lighter than they are?), dark-share error. Exports CSV. |
+| **Practice & settings** | Watch yourself improve. | Logs every session: average miss, bias (do you see values lighter than they are?), dark-share error. Exports CSV. Training mode and the meter spot live here too. |
 
 The overlay offers these views: zones in false colour, textured darks (II–III), textured lights (VII–VIII), the middle "mud" range (IV–VI), no-texture extremes, five ink families, four values, and a two-value light/shadow split.
 
@@ -126,8 +133,8 @@ npm run test:photoshop
 
 ### Test status
 
-- Zone math: 34 unit tests, including banded-versus-whole blur equality and bad-input guards.
-- Panel flows: 16 tests in jsdom against a Photoshop stand-in, including request queuing and double-click protection.
+- Zone math: 36 unit tests, including banded-versus-whole blur equality, bad-input guards and the one-click moves.
+- Panel flows: 20 tests in jsdom against a Photoshop stand-in, covering the guided steps (locks, self-ticking checklists, Next prompts, one-click moves, the live readout, the opportunities hand-off), request queuing and double-click protection.
 - Photoshop operations: 44 pixel-level checks in Photoshop 2026 (27.10). They cover RGB, Grayscale and 16-bit documents, overlays, filters, development, placement, burning, the optical average (single and banded), the ladder, the opportunities sheet, cancellation, active selections and input validation.
 - Resource safety: on a 48-megapixel image, the optical average peaks about 250 MB above Photoshop's baseline, against about 1.7 GB before banding. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#resource-safety).
 - The panel's interface hasn't yet been exercised by hand inside Photoshop's own UXP runtime. Its operations have, through the harness. Please [open an issue](https://github.com/cmerritthoughton/zonesystemPSD/issues) if anything in the panel renders or behaves differently there.

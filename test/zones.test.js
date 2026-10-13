@@ -379,3 +379,28 @@ test("banded blurring matches blurring the whole image exactly", () => {
   for (let i = 0; i < whole.length; i++) worst = Math.max(worst, Math.abs(whole[i] - banded[i]));
   assert.ok(worst <= 1, `largest difference ${worst}`);
 });
+
+test("moves pair each piece of advice with one-click tries", () => {
+  const flat = Z.analyze([0, 0, 0, 0.1, 0.3, 0.3, 0.2, 0.1, 0, 0, 0]);
+  const low = Z.moves("low", flat, { shadowZone: 3.2 });
+  assert.deepEqual(low.map((m) => m.text), Z.suggestions("low", flat), "same text as suggestions");
+  const lowTries = low[0].tries.map((t) => t.action);
+  assert.deepEqual(lowTries[0], { type: "place", index: 1, zone: 2 }, "#1 a zone lower");
+  assert.deepEqual(lowTries[1], { type: "burnEdges", amount: 50 });
+  assert.deepEqual(lowTries[2], { type: "filter", id: "red" });
+  assert.equal(low[0].tries[0].label, "Place #1 on Zone II");
+  const mud = low.find((m) => /mud/.test(m.text));
+  assert.deepEqual(mud.tries.map((t) => t.action), [{ type: "dev", n: 1 }]);
+  assert.equal(mud.tries[0].label, "Try N+1");
+});
+
+test("moves leave out tries that can't apply", () => {
+  const flat = Z.analyze([0, 0, 0, 0.1, 0.3, 0.3, 0.2, 0.1, 0, 0, 0]);
+  const noMarker = Z.moves("low", flat, { shadowZone: null, rgb: false });
+  assert.deepEqual(noMarker[0].tries.map((t) => t.action.type), ["burnEdges"], "no placement without #1, no filter in Grayscale");
+  const high = Z.moves("high", flat, { shadowZone: 5 });
+  assert.deepEqual(high[0].tries.map((t) => t.action), [{ type: "dev", n: -1 }], "#1 already above IV: no placement");
+  const ok = Z.moves("full", Z.analyze([0.05, 0.1, 0.15, 0.15, 0.1, 0.05, 0.1, 0.1, 0.1, 0.05, 0.05]));
+  assert.equal(ok.length, 1);
+  assert.deepEqual(ok[0].tries[0].action, { type: "goto", step: "compare" });
+});

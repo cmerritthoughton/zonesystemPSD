@@ -4,6 +4,12 @@
     <meta charset="utf-8" />
     <title>Visualize First</title>
     <style>
+      :root {
+        --accent: var(--uxp-host-link-text-color, #378ef0);
+        --ink-2: var(--uxp-host-text-color-secondary, #a8a8a8);
+        --line: var(--uxp-host-border-color, #4a4a4a);
+        --done: #2d9d78;
+      }
       body {
         margin: 0;
         padding: 8px 10px 18px;
@@ -14,13 +20,13 @@
         line-height: 1.4;
       }
       h2 {
-        font-size: 14px;
-        margin: 6px 0 4px;
+        font-size: 15px;
+        margin: 2px 0 2px;
       }
       h3 {
         font-size: 12px;
-        margin: 14px 0 4px;
-        color: var(--uxp-host-text-color-secondary, #b4b4b4);
+        margin: 16px 0 4px;
+        color: var(--ink-2);
         text-transform: uppercase;
         letter-spacing: 0.04em;
       }
@@ -39,8 +45,9 @@
       label.check input {
         margin-right: 6px;
       }
-      .hint {
-        color: var(--uxp-host-text-color-secondary, #a8a8a8);
+      .hint,
+      .muted {
+        color: var(--ink-2);
       }
       .small {
         font-size: 11px;
@@ -62,35 +69,35 @@
         margin: 6px 6px 0 0;
         padding: 3px 9px;
         border-radius: 4px;
-        border: 1px solid var(--uxp-host-border-color, #5a5a5a);
+        border: 1px solid var(--line);
         background: transparent;
         color: inherit;
         font-size: inherit;
         cursor: pointer;
       }
-      button.cta {
-        background: var(--uxp-host-link-text-color, #378ef0);
-        border-color: var(--uxp-host-link-text-color, #378ef0);
+      button.cta,
+      button.on {
+        background: var(--accent);
+        border-color: var(--accent);
         color: #fff;
+      }
+      button.link {
+        border: none;
+        padding: 2px 0;
+        color: var(--accent);
       }
       button:disabled {
         opacity: 0.45;
         cursor: default;
       }
-      button.on {
-        background: var(--uxp-host-link-text-color, #378ef0);
-        border-color: var(--uxp-host-link-text-color, #378ef0);
-        color: #fff;
-      }
-      .row {
+      .row,
+      .line,
+      .seg {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
       }
       .line {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
         margin: 6px 0;
       }
       .line > * {
@@ -98,38 +105,191 @@
       }
       .line select {
         width: auto;
-      }
-      .seg {
-        display: flex;
-        flex-wrap: wrap;
+        max-width: 190px;
       }
       .seg button {
         margin: 4px 4px 0 0;
         padding: 2px 7px;
       }
-      #steps {
-        display: flex;
-        flex-wrap: wrap;
-        border-bottom: 1px solid var(--uxp-host-border-color, #4a4a4a);
-        padding-bottom: 6px;
-        margin-bottom: 4px;
-      }
-      #steps button {
-        margin: 3px 3px 0 0;
-        padding: 2px 6px;
-      }
+
+      /* Header: image, stepper, tools, activity */
       #docline {
-        color: var(--uxp-host-text-color-secondary, #a8a8a8);
-        margin-bottom: 4px;
+        color: var(--ink-2);
+        margin-bottom: 6px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
       }
-      #overlayBar {
-        margin-top: 14px;
-        padding-top: 8px;
-        border-top: 1px solid var(--uxp-host-border-color, #4a4a4a);
+      #stepper {
+        display: flex;
+        align-items: flex-start;
       }
+      .step {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin: 0;
+        padding: 0 0 2px;
+        border: none;
+        background: transparent;
+        min-width: 0;
+      }
+      .step .dot {
+        width: 22px;
+        height: 22px;
+        line-height: 20px;
+        border-radius: 11px;
+        border: 1px solid var(--line);
+        text-align: center;
+        font-size: 11px;
+        font-weight: bold;
+        box-sizing: border-box;
+      }
+      .step .name {
+        margin-top: 3px;
+        font-size: 10px;
+        color: var(--ink-2);
+        white-space: nowrap;
+      }
+      .step.current .dot {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      .step.current .name {
+        color: var(--uxp-host-text-color, #e6e6e6);
+        font-weight: bold;
+      }
+      .step.done .dot {
+        border-color: var(--done);
+        color: var(--done);
+      }
+      .step.locked {
+        opacity: 0.4;
+      }
+      .rail {
+        flex: 0 0 8px;
+        height: 1px;
+        margin-top: 11px;
+        background: var(--line);
+      }
+      .rail.done {
+        background: var(--done);
+      }
+      #tools {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        margin-top: 4px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid var(--line);
+      }
+      #tools button {
+        margin: 0 0 0 10px;
+        font-size: 11px;
+      }
+      .status {
+        min-height: 16px;
+        margin: 6px 0 2px;
+        color: var(--ink-2);
+      }
+      .status.error {
+        color: #ff8a80;
+      }
+
+      /* Step scaffold */
+      .stephead {
+        margin-top: 8px;
+        font-size: 11px;
+        color: var(--ink-2);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .lede {
+        color: var(--ink-2);
+        margin-bottom: 8px;
+      }
+      .checklist {
+        margin: 6px 0;
+      }
+      .check-item {
+        display: flex;
+        align-items: flex-start;
+        margin: 3px 0;
+      }
+      .check-item .mark {
+        flex: 0 0 18px;
+        color: var(--ink-2);
+      }
+      .check-item.done .mark {
+        color: var(--done);
+      }
+      .check-item.done .text {
+        color: var(--ink-2);
+      }
+      .check-item .opt {
+        color: var(--ink-2);
+        font-size: 11px;
+        margin-left: 4px;
+      }
+      .next {
+        margin: 8px 0 10px;
+        padding: 7px 9px;
+        border-left: 3px solid var(--accent);
+        border-radius: 2px;
+        background: rgba(55, 142, 240, 0.12);
+      }
+      .next b {
+        color: var(--accent);
+      }
+      .next button {
+        margin-top: 6px;
+      }
+      .actions {
+        margin-top: 16px;
+        padding-top: 10px;
+        border-top: 1px solid var(--line);
+      }
+      .actions .row {
+        justify-content: space-between;
+      }
+      .actions button {
+        margin-top: 0;
+      }
+      .blocked {
+        margin-top: 6px;
+        font-size: 11px;
+        color: var(--ink-2);
+      }
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 8px 10px;
+        margin: 10px 0;
+      }
+      .card ol {
+        margin: 6px 0 4px;
+        padding-left: 18px;
+      }
+      .sub {
+        display: flex;
+        align-items: center;
+        margin: 16px 0 4px;
+        font-weight: bold;
+      }
+      .sub .num {
+        width: 18px;
+        height: 18px;
+        line-height: 18px;
+        border-radius: 9px;
+        margin-right: 6px;
+        text-align: center;
+        font-size: 10px;
+        background: var(--line);
+      }
+
+      /* Markers, results, charts */
       .mrow {
         display: flex;
         align-items: center;
@@ -141,9 +301,19 @@
       .mrow select {
         width: auto;
         min-width: 110px;
+        max-width: 150px;
       }
-      .mrow .grow {
+      .mrow .role {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .grow {
         flex: 1;
+      }
+      .slot-empty {
+        color: var(--ink-2);
+        font-style: italic;
       }
       .chip {
         display: inline-block;
@@ -164,6 +334,9 @@
         height: 84px;
         margin-top: 8px;
       }
+      .bars.mini {
+        height: 44px;
+      }
       .bar {
         flex: 1;
         margin-right: 2px;
@@ -177,7 +350,14 @@
         margin-right: 2px;
         text-align: center;
         font-size: 9px;
-        color: var(--uxp-host-text-color-secondary, #a8a8a8);
+        color: var(--ink-2);
+      }
+      .move {
+        margin: 8px 0;
+      }
+      .move button {
+        margin-top: 4px;
+        font-size: 11px;
       }
       .legend {
         display: flex;
@@ -199,78 +379,100 @@
       li {
         margin: 4px 0;
       }
-      .status {
-        margin-top: 10px;
-        min-height: 16px;
-        color: var(--uxp-host-text-color-secondary, #a8a8a8);
-      }
-      .status.error {
-        color: #ff8a80;
-      }
       .entry {
         margin: 6px 0;
         padding-bottom: 6px;
-        border-bottom: 1px solid var(--uxp-host-border-color, #444);
+        border-bottom: 1px solid var(--line);
       }
-      .muted {
-        color: var(--uxp-host-text-color-secondary, #a8a8a8);
-      }
-      .box {
-        border: 1px solid var(--uxp-host-border-color, #555);
-        border-radius: 4px;
-        padding: 6px 8px;
-        margin: 8px 0;
+      #overlayBar {
+        margin-top: 14px;
+        padding-top: 8px;
+        border-top: 1px solid var(--line);
       }
     </style>
   </head>
   <body>
     <div id="docline">No image open</div>
-    <div id="steps"></div>
+    <div id="stepper"></div>
+    <div id="tools">
+      <span class="muted small">Tools</span>
+      <button class="link" data-goto="ink">Ink</button>
+      <button class="link" data-goto="practice">Practice &amp; settings</button>
+    </div>
+    <div id="status" class="status"></div>
+
+    <div id="empty" class="card" style="display: none">
+      <p><b>Open an image to begin.</b></p>
+      <p class="hint">Open a photograph or a scanned drawing in Photoshop. The panel follows whichever image is active, and keeps each image's progress separately.</p>
+    </div>
+
+    <div id="welcome" class="card" style="display: none">
+      <p><b>Five steps, about five minutes.</b></p>
+      <ol>
+        <li><b>Visualize:</b> decide how the print should feel.</li>
+        <li><b>Predict:</b> mark key tones and guess their zones.</li>
+        <li><b>Reveal:</b> see what the meter says, and where you missed.</li>
+        <li><b>Interpret:</b> filter, place, develop and burn.</li>
+        <li><b>Compare:</b> see twenty versions side by side.</li>
+      </ol>
+      <p class="hint small">The panel only adds layers inside a "Visualize First" group; your own layers are never touched.</p>
+      <button data-act="welcomeOk" class="cta">Start</button>
+    </div>
 
     <section data-step="visualize">
-      <h2>Look before you measure</h2>
-      <p class="hint">Adams decided what the print should feel like before he made the exposure. Study the image, then write the drawing you want in one sentence, before anything is measured.</p>
+      <div class="stephead" id="head-visualize"></div>
+      <h2>Decide what the print should feel like</h2>
+      <p class="lede">Adams decided how the print should feel before he made the exposure. Look at the image, then put that decision into words.</p>
+      <div class="checklist" id="check-visualize"></div>
+      <div class="next" id="next-visualize"></div>
       <label for="sentence">What is the light doing, and how should it feel?</label>
       <textarea id="sentence" rows="3" placeholder="Late storm light breaking onto the tower; the street below still in rain."></textarea>
       <label>The print you want</label>
       <div class="seg" id="intent"></div>
       <p class="hint small" id="intentHint"></p>
       <label class="check"><input type="checkbox" id="mono" /> Monochrome preview</label>
-      <p class="hint small">Try to see the values while the image is still in colour; that's the skill. Switch to monochrome when you're ready to predict.</p>
-      <div class="row">
-        <button id="toPredict" class="cta">Next: predict</button>
-        <button id="fresh">Start fresh</button>
-      </div>
-      <p class="hint small">Start fresh clears this image's guesses and sets the print back to neutral: no filter, normal development, no burning.</p>
+      <p class="hint small">Try to see the values while the image is still in colour; that's the skill. Switch to monochrome when you're ready.</p>
+      <div class="actions" id="actions-visualize"></div>
     </section>
 
     <section data-step="predict">
-      <h2>Place your anchors</h2>
-      <p class="hint">Choose the Color Sampler tool (I) and click the image. Make #1 the shadow that must keep its texture and #2 the brightest light that must keep its texture. Add any other spots you're curious about, then guess each one's zone.</p>
+      <div class="stephead" id="head-predict"></div>
+      <h2>Predict the values</h2>
+      <p class="lede">Commit to what you think the tones are, before anything is measured.</p>
+      <div class="checklist" id="check-predict"></div>
+      <div class="next" id="next-predict"></div>
+      <h3>Your markers</h3>
       <div id="markerList"></div>
       <label for="darkGuess">How much of the frame is dark (Zones 0–IV)? <b id="darkGuessVal">50%</b></label>
       <input type="range" id="darkGuess" min="0" max="100" step="5" value="50" />
-      <div class="row">
-        <button id="reveal" class="cta">Reveal</button>
-        <button id="clearMarkers">Clear markers</button>
-      </div>
-      <p class="hint small" id="revealGate"></p>
+      <div class="row"><button class="link" data-act="pickSampler">Pick the Color Sampler tool</button><span class="muted">&nbsp;·&nbsp;</span><button class="link" data-act="clearMarkers">Remove all markers</button></div>
+      <div class="actions" id="actions-predict"></div>
     </section>
 
     <section data-step="reveal">
-      <h2>What the meter says</h2>
+      <div class="stephead" id="head-reveal"></div>
+      <h2>See what the meter says</h2>
+      <p class="lede">Compare your predictions with the measurements, then choose a move toward your print.</p>
+      <div class="checklist" id="check-reveal"></div>
+      <div class="next" id="next-reveal"></div>
       <div id="revealBody"></div>
+      <div class="actions" id="actions-reveal"></div>
     </section>
 
     <section data-step="interpret">
-      <h2>Perform the score</h2>
-      <p class="hint">The scene is the score; the print is your performance. Choose a filter, then place one value and develop the rest, the way Adams used exposure and development.</p>
-      <label for="filter">Filter</label>
+      <div class="stephead" id="head-interpret"></div>
+      <h2>Perform the print</h2>
+      <p class="lede">The scene is the score; the print is your performance. Work from top to bottom and watch the zones move.</p>
+      <div class="checklist" id="check-interpret"></div>
+      <div class="next" id="next-interpret"></div>
+      <div class="card" id="readout"></div>
+      <div class="sub"><span class="num">1</span>Filter</div>
       <select id="filter"></select>
       <p class="hint small" id="filterNote"></p>
+      <div class="sub"><span class="num">2</span>Exposure and development</div>
       <label>Development: Zone III held, highlights moved</label>
       <div class="seg" id="devs"></div>
-      <h3>Place and develop</h3>
+      <label>Or place values directly</label>
       <div class="line">
         <span>Place marker</span><select id="placeA"></select><span>on Zone</span><select id="placeAZone"></select>
       </div>
@@ -280,7 +482,7 @@
       </div>
       <button id="place">Place</button>
       <p id="placeResult"></p>
-      <h3>Print</h3>
+      <div class="sub"><span class="num">3</span>Burning</div>
       <label for="burnEdges">Burn the edges <b id="burnEdgesVal">0%</b></label>
       <input type="range" id="burnEdges" min="0" max="100" step="5" value="0" />
       <label for="burnSky">Burn the sky <b id="burnSkyVal">0%</b></label>
@@ -291,12 +493,16 @@
         <option value="0.4" selected>Two-fifths of the way down</option>
         <option value="0.6">Three-fifths of the way down</option>
       </select>
-      <div class="row"><button id="resetPrint">Neutral print</button></div>
+      <div class="row"><button class="link" data-act="resetPrint">Back to the neutral print</button></div>
+      <div class="actions" id="actions-interpret"></div>
     </section>
 
-    <section data-step="opportunities">
-      <h2>See the opportunities</h2>
-      <p class="hint">Twenty performances of the same scene: five filters across four developments, in a new document. Look for the one that matches your sentence, and for the one that surprises you.</p>
+    <section data-step="compare">
+      <div class="stephead" id="head-compare"></div>
+      <h2>Compare twenty performances</h2>
+      <p class="lede">Five filters across four developments of the same scene, in a new document. Look for the one that matches your sentence, and the one that surprises you.</p>
+      <div class="checklist" id="check-compare"></div>
+      <div class="next" id="next-compare"></div>
       <label class="check"><input type="checkbox" id="sheetBurns" checked /> Include my burning</label>
       <label class="check"><input type="checkbox" id="sheetMasses" /> Show each as four value masses</label>
       <label for="sheetSize">Thumbnail size</label>
@@ -305,18 +511,19 @@
         <option value="320" selected>Medium</option>
         <option value="420">Large</option>
       </select>
-      <div class="row"><button id="makeSheet" class="cta">Make opportunities sheet</button></div>
-      <div id="variantBox" class="box" style="display: none">
-        <label for="variant" id="variantLabel">Apply a variant</label>
+      <div id="variantBox" class="card" style="display: none">
+        <label for="variant" id="variantLabel">Apply a version</label>
         <select id="variant"></select>
         <div class="row"><button id="applyVariant">Apply to the image</button></div>
       </div>
+      <div class="actions" id="actions-compare"></div>
     </section>
 
     <section data-step="ink">
+      <div class="stephead">Tool</div>
       <h2>Pen and ink</h2>
-      <p class="hint">Check what your marks actually produce. Scan the drawing, blur a copy to the distance it will be seen from, and read the zones.</p>
-      <div id="grayNotice" class="box" style="display: none">
+      <p class="lede">Check what your marks actually produce. Scan the drawing, blur a copy to the distance it will be seen from, and read the zones.</p>
+      <div id="grayNotice" class="card" style="display: none">
         <p>This scan is Grayscale. Light/shadow, four values and ink families work as they are; the colour overlays need RGB.</p>
         <button id="toRGB">Convert to RGB</button>
       </div>
@@ -342,26 +549,30 @@
       <h3>Zone ladder</h3>
       <p class="hint small">An eleven-step strip down the right edge, for comparing values side by side. Under the zone overlay it doubles as a legend.</p>
       <div class="row"><button id="addLadder">Add ladder</button><button id="removeLadder">Remove</button></div>
+      <div class="actions" id="actions-ink"></div>
     </section>
 
     <section data-step="practice">
-      <h2>Practice</h2>
+      <div class="stephead">Tool</div>
+      <h2>Practice and settings</h2>
       <div id="logStats"></div>
       <div id="logList"></div>
       <div class="row"><button id="exportLog">Export CSV</button><button id="clearLog">Clear log</button></div>
       <h3>Settings</h3>
       <label class="check"><input type="checkbox" id="training" /> Training mode</label>
-      <p class="hint small">Keeps measurements hidden until you've written a visualization and made a prediction.</p>
+      <p class="hint small">Keeps measurements hidden, and the steps in order, until you've written a visualization and made a prediction.</p>
       <label for="spot">Meter spot</label>
       <select id="spot">
         <option value="spot">1° spot meter (about 2% of the frame)</option>
         <option value="small">5 × 5 pixels</option>
         <option value="pixel">Single pixel</option>
       </select>
+      <div class="row"><button class="link" data-act="showWelcome">Show the five-step introduction again</button></div>
+      <div class="actions" id="actions-practice"></div>
     </section>
 
     <div id="overlayBar">
-      <h3>Overlay</h3>
+      <h3>See the zones on the image</h3>
       <div class="seg" id="overlayModes"></div>
       <p class="hint small" id="overlayHint"></p>
       <div class="legend" id="legend"></div>
@@ -372,8 +583,6 @@
       <label for="opacity">Overlay opacity <b id="opacityVal">100%</b></label>
       <input type="range" id="opacity" min="10" max="100" step="5" value="100" />
     </div>
-
-    <div id="status" class="status"></div>
 
     <script src="js/zones.js"></script>
     <script src="js/ps.js"></script>

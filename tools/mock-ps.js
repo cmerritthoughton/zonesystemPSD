@@ -49,7 +49,11 @@
       await delay(60);
       return doc.markers.map((m) => Object.assign({}, m, { L: MARKER_L[m.index] || 50, zone: Z.zoneValue(MARKER_L[m.index] || 50, scale) }));
     },
+    async selectColorSamplerTool() {
+      window.__toolCalls = (window.__toolCalls || 0) + 1;
+    },
     async measureDistribution() {
+      window.__measureCalls = (window.__measureCalls || 0) + 1;
       const fractions = [0.004, 0.02, 0.06, 0.12, 0.18, 0.22, 0.17, 0.12, 0.07, 0.03, 0.006];
       return { fractions, analysis: Z.analyze(fractions) };
     },

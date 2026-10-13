@@ -411,6 +411,17 @@
       ok("applying a variant sets filter and development", child(doc, "filter").name.includes("Red") && child(doc, "dev").name.endsWith("N+2"), `${child(doc, "filter").name} ${child(doc, "dev").name}`);
     });
 
+    await check("the panel can pick the Color Sampler tool", async () => {
+      const getTool = async () => JSON.stringify(await modal("get tool", () => bp({ _obj: "get", _target: [{ _property: "tool" }, { _ref: "application", _enum: "ordinal", _value: "targetEnum" }] })));
+      const before = await getTool();
+      await V.selectColorSamplerTool();
+      const after = await getTool();
+      ok("the panel can pick the Color Sampler tool", /colorSampler/i.test(after), after.slice(0, 160));
+      // Put the artist's tool back.
+      const prev = /"(\w+Tool)"/.exec(before);
+      if (prev && prev[1] !== "colorSamplerTool") await modal("restore tool", () => bp({ _obj: "select", _target: [{ _ref: prev[1] }] }));
+    });
+
     await check("clear markers", async () => {
       await V.clearMarkers();
       ok("clear markers", V.docInfo().markers.length === 0, JSON.stringify(V.docInfo().markers));

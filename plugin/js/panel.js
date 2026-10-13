@@ -1,10 +1,12 @@
 /*
  * Visualize First — panel.
  *
- * The training loop: visualize (write the print you want) → predict (guess
- * zones at markers you place) → reveal (measure, compare, read the frame)
- * → interpret (filter, place, develop, burn) → opportunities (see many
- * performances at once). Ink tools and the practice log sit alongside.
+ * A guided sequence of five steps: visualize (write the print you want) →
+ * predict (mark tones, guess zones) → reveal (measure, compare, choose a
+ * move) → interpret (filter, place, develop, burn) → compare (twenty
+ * performances at once). Every step has a self-ticking checklist, a "Next"
+ * prompt, and forward/back actions that say what is still missing. Ink and
+ * Practice sit beside the sequence as tools.
  */
 (function () {
   "use strict";
@@ -12,17 +14,18 @@
   const P = window.VFps;
   const $ = (id) => document.getElementById(id);
 
-  const STEPS = [
-    ["visualize", "Visualize"],
-    ["predict", "Predict"],
-    ["reveal", "Reveal"],
-    ["interpret", "Interpret"],
-    ["opportunities", "Opportunities"],
-    ["ink", "Ink"],
-    ["practice", "Practice"],
+  const FLOW = [
+    { id: "visualize", label: "Visualize" },
+    { id: "predict", label: "Predict" },
+    { id: "reveal", label: "Reveal" },
+    { id: "interpret", label: "Interpret" },
+    { id: "compare", label: "Compare" },
   ];
-  const OVERLAY_STEPS = ["reveal", "interpret", "opportunities", "ink"];
-  const BLIND_STEPS = ["visualize", "predict"];
+  const TOOLS = { ink: "Ink", practice: "Practice & settings" };
+  const flowIndex = (id) => FLOW.findIndex((s) => s.id === id);
+  const isFlow = (id) => flowIndex(id) >= 0;
+  const labelOf = (id) => (isFlow(id) ? FLOW[flowIndex(id)].label : TOOLS[id]);
+  const SHEET_PREFIX = "Opportunities — ";
   const LOG_KEY = "visualizeFirst.log.v1";
   const SETTINGS_KEY = "visualizeFirst.settings.v1";
 
@@ -44,17 +47,23 @@
     },
   };
 
-  const settings = Object.assign({ training: true, spot: "spot", scaleMode: "screen", ink: { black: 15, white: 94 } }, store.get(SETTINGS_KEY, {}));
+  const settings = Object.assign({ training: true, spot: "spot", scaleMode: "screen", ink: { black: 15, white: 94 }, welcomed: false }, store.get(SETTINGS_KEY, {}));
   const saveSettings = () => store.set(SETTINGS_KEY, settings);
 
-  const S = { step: "visualize", doc: null, sessions: {}, busy: false, pending: null, sig: "", markerSig: "", sheet: null, clearArmed: null };
+  const S = { step: "visualize", lastFlow: "visualize", doc: null, docKey: null, sessions: {}, busy: false, pending: null, sig: "", markerSig: "", sheet: null, moves: [], clearArmed: null };
 
   const freshSession = () => ({
+    step: "visualize",
     sentence: "",
-    intent: "full",
+    intent: null,
     darkGuess: 50,
+    darkTouched: false,
     guesses: {},
     reveal: null,
+    now: null,
+    did: { filter: false, develop: false, burn: false },
+    interpreted: false,
+    applied: false,
     overlay: "off",
     opacity: 100,
     split: 6,
@@ -75,8 +84,12 @@
     inkRead: null,
   });
 
+  // The opportunities sheet belongs to the image it was made from: while it
+  // is the active document, the panel keeps working on that image's session.
+  const onSheet = () => !!(S.doc && S.sheet && S.doc.title === SHEET_PREFIX + S.sheet.sourceTitle);
+  const sessionKey = () => (onSheet() ? S.sheet.sourceId : S.doc ? S.doc.id : "none");
   function session() {
-    const id = S.doc ? S.doc.id : "none";
+    const id = sessionKey();
     if (!S.sessions[id]) S.sessions[id] = freshSession();
     return S.sessions[id];
   }
@@ -91,6 +104,7 @@
     return `<span class="chip" style="background: rgb(${c.join(",")}); color: ${textOn(c)}">${Z.roman(z)}</span>`;
   };
   const roleOf = (index) => (index === 1 ? "Shadow anchor" : index === 2 ? "Light anchor" : "Marker");
+  const roleHint = (index) => (index === 1 ? "the darkest shadow that must keep its texture" : index === 2 ? "the brightest light that must keep its texture" : "");
   const zoneOptions = (selected, blank) =>
     (blank ? `<option value="">Your guess…</option>` : "") +
     Z.ROMAN.map((r, k) => `<option value="${k}"${selected === k ? " selected" : ""}>${r} · ${Z.ZONES[k].meaning}</option>`).join("");
@@ -100,6 +114,18 @@
     return ms.map((m) => `<option value="${m.index}"${m.index === selected ? " selected" : ""}>#${m.index}</option>`).join("");
   };
   const isFocused = (el) => document.activeElement === el;
+  const bars = (fr, mini) => {
+    const maxF = Math.max.apply(null, fr) || 1;
+    const h = mini ? 40 : 80;
+    return (
+      `<div class="bars${mini ? " mini" : ""}">` +
+      fr.map((f, k) => `<div class="bar" title="Zone ${Z.ROMAN[k]}: ${pct(f)}" style="height: ${Math.max(2, Math.round((f / maxF) * h))}px; background: rgb(${Z.ZONE_COLORS[k].join(",")})"></div>`).join("") +
+      `</div><div class="barlabels">` +
+      fr.map((f, k) => `<span>${Z.ROMAN[k]}${mini ? "" : `<br/>${f >= 0.005 ? Math.round(f * 100) : "·"}`}</span>`).join("") +
+      `</div>`
+    );
+  };
+  const readingLine = (a) => `${pct(a.dark)} dark · ${Z.RANGE_LABEL[a.range].toLowerCase()} · textured lights ${pct(a.texturedLight)}`;
 
   // ---- Status and running operations ------------------------------------------
 
@@ -146,6 +172,22 @@
     }
   }
 
+  // A change to the print: apply it, then read the zones it produces so the
+  // "Your print now" readout follows every move.
+  function runPrint(label, op, kind) {
+    const ses = session();
+    run(
+      label,
+      async () => {
+        await op();
+        ses.interpreted = true;
+        if (kind) ses.did[kind] = true;
+        ses.now = await P.measureDistribution({ scale: scale() });
+      },
+      { queue: true }
+    );
+  }
+
   // ---- Reading state back from the document's layers -------------------------
 
   function syncFromLayers(ses, info) {
@@ -190,74 +232,250 @@
     if (!force && sig === S.sig) return;
     S.sig = sig;
     S.doc = info;
-    if (info) syncFromLayers(session(), info);
+    // A different image: pick up where that image left off.
+    const key = sessionKey();
+    if (key !== S.docKey) {
+      S.docKey = key;
+      if (isFlow(S.step)) S.step = onSheet() ? "compare" : session().step;
+    }
+    if (info && !onSheet()) syncFromLayers(session(), info);
     render();
+  }
+
+  // ---- The guide: progress, locks, checklists, next actions ------------------------
+
+  function progress() {
+    const ses = session();
+    const markers = S.doc && !onSheet() ? S.doc.markers : [];
+    const guessed = markers.filter((m) => Number.isFinite(ses.guesses[m.index])).length;
+    const p = {
+      wrote: ses.sentence.trim().length >= 10,
+      keyChosen: !!ses.intent,
+      markers: markers.length,
+      marker1: markers.some((m) => m.index === 1),
+      marker2: markers.some((m) => m.index === 2),
+      guessed,
+      unguessed: markers.find((m) => !Number.isFinite(ses.guesses[m.index])) || null,
+      darkTouched: ses.darkTouched,
+      revealed: !!ses.reveal,
+      interpreted: ses.interpreted,
+      sheet: !!(S.sheet && S.sheet.sourceId === sessionKey()),
+    };
+    p.visualized = p.wrote && p.keyChosen;
+    p.predicted = p.markers > 0 && p.guessed > 0;
+    return p;
+  }
+
+  const DONE = {
+    visualize: (p) => p.visualized,
+    predict: (p) => p.predicted || p.revealed,
+    reveal: (p) => p.revealed,
+    interpret: (p) => p.interpreted,
+    compare: (p) => p.sheet,
+  };
+
+  function lockReason(id, p) {
+    if (!S.doc) return "Open an image first.";
+    if (!settings.training) return null;
+    const step1 = "Finish step 1 first: write your sentence and choose a key.";
+    if (id === "predict" && !p.visualized && !p.revealed) return step1;
+    if (id === "reveal" && !p.revealed && !(p.visualized && p.predicted)) return p.visualized ? "Finish step 2 first: place a marker and guess its zone." : step1;
+    if ((id === "interpret" || id === "compare") && !p.revealed) return "Reveal the meter readings first (step 3).";
+    return null;
+  }
+
+  function revealBlocked(p) {
+    if (!settings.training) return S.doc && !onSheet() ? null : "Open the image you're working on.";
+    if (!p.visualized) return "Finish step 1 first: write your sentence and choose a key.";
+    if (!p.markers) return "Place at least one marker on the image.";
+    if (!p.guessed) return "Guess the zone of at least one marker.";
+    return null;
+  }
+
+  function checklist(id, p) {
+    const ses = session();
+    switch (id) {
+      case "visualize":
+        return [
+          { text: "Write what the print should feel like", done: p.wrote },
+          { text: "Choose the key you want", done: p.keyChosen },
+        ];
+      case "predict":
+        return [
+          { text: "Place #1 on the darkest shadow that must keep its texture", done: p.marker1 },
+          { text: "Place #2 on the brightest light that must keep its texture", done: p.marker2, optional: true },
+          { text: p.markers ? `Guess each marker's zone (${p.guessed} of ${p.markers})` : "Guess each marker's zone", done: p.markers > 0 && p.guessed === p.markers },
+          { text: "Estimate how much of the frame is dark", done: p.darkTouched, optional: true },
+        ];
+      case "reveal":
+        return [
+          { text: "Reveal the meter readings", done: p.revealed },
+          { text: "Try a move toward your print", done: p.interpreted, optional: true },
+        ];
+      case "interpret":
+        return [
+          { text: "Choose a filter", done: ses.did.filter, optional: true },
+          { text: "Place or develop", done: ses.did.develop, optional: true },
+          { text: "Burn to taste", done: ses.did.burn, optional: true },
+        ];
+      case "compare":
+        return [
+          { text: "Make the opportunities sheet", done: p.sheet },
+          { text: "Apply the version you like", done: ses.applied, optional: true },
+        ];
+      default:
+        return [];
+    }
+  }
+
+  // The single next thing to do, and a button when the panel can do it.
+  function nextFor(id, p) {
+    const pick = { label: "Pick the Color Sampler tool", act: "pickSampler" };
+    switch (id) {
+      case "visualize":
+        if (!p.wrote) return { text: "Look at the image in colour, then write one sentence: what is the light doing, and how should it feel?" };
+        if (!p.keyChosen) return { text: "Choose the key of the print you want: low key, full scale or high key." };
+        return { text: "Ready. Continue to Predict." };
+      case "predict":
+        if (!p.marker1) return { text: "Pick the Color Sampler tool, then click the darkest shadow that must still show texture. That places marker #1.", action: pick };
+        if (!p.marker2) return { text: "Now click the brightest light that must still show texture. That places marker #2.", action: pick };
+        if (p.unguessed) return { text: `Guess the zone of marker #${p.unguessed.index} from the menu below.` };
+        if (!p.darkTouched) return { text: "Estimate how much of the frame is dark (Zones 0–IV) with the slider." };
+        return { text: "Ready. Reveal the meter readings." };
+      case "reveal":
+        if (!p.revealed) return revealBlocked(p) ? { text: revealBlocked(p) } : { text: "Reveal the meter readings when you're ready." };
+        return { text: "See where you missed, then try one of the moves below. It applies the change and takes you to Interpret." };
+      case "interpret":
+        if (!p.interpreted) return { text: "Start with the filter, then exposure and development, then burning. The readout shows how each change moves the zones." };
+        return { text: "When the readout matches your sentence, compare twenty alternatives." };
+      case "compare":
+        if (!p.sheet) return { text: "Make the sheet. It opens as a new document; stay on this step to apply a version." };
+        if (!session().applied) return { text: "Pick the version closest to your sentence and apply it, or start a new round." };
+        return { text: "Done. Start a new round with this image, or open another one." };
+      default:
+        return null;
+    }
+  }
+
+  function actionsFor(id, p) {
+    const back = (to) => ({ label: labelOf(to), goto: to });
+    switch (id) {
+      case "visualize": {
+        const blocked = settings.training && !p.visualized ? (!p.wrote ? "To continue, write a sentence about the print." : "To continue, choose the key you want.") : null;
+        const started = p.wrote || p.guessed > 0 || p.revealed;
+        return { back: null, primary: { label: "Continue to Predict →", goto: "predict", blocked }, extra: started ? { label: "Start a new round", act: "startOver" } : null };
+      }
+      case "predict":
+        return { back: back("visualize"), primary: { label: "Reveal the meter readings →", act: "reveal", blocked: revealBlocked(p) } };
+      case "reveal":
+        return p.revealed
+          ? { back: back("predict"), primary: { label: "Continue to Interpret →", goto: "interpret" } }
+          : { back: back("predict"), primary: { label: "Reveal the meter readings →", act: "reveal", blocked: revealBlocked(p) } };
+      case "interpret":
+        return { back: back("reveal"), primary: { label: "Compare 20 performances →", goto: "compare" } };
+      case "compare":
+        return p.sheet
+          ? { back: back("interpret"), primary: { label: "Start a new round", act: "startOver" } }
+          : { back: back("interpret"), primary: { label: "Make the opportunities sheet", act: "makeSheet" } };
+      default:
+        return { back: back(S.lastFlow), primary: null };
+    }
   }
 
   // ---- Rendering ----------------------------------------------------------------------
 
   function render() {
-    renderHeader();
+    const p = progress();
+    renderHeader(p);
+    renderGuide(p);
     renderVisualize();
     renderPredict();
-    renderReveal();
+    renderReveal(p);
     renderInterpret();
-    renderOpportunities();
+    renderCompare();
     renderInk();
     renderPractice();
-    renderOverlay();
+    renderOverlay(p);
   }
 
-  function renderHeader() {
+  function renderHeader(p) {
     const d = S.doc;
-    $("docline").textContent = d ? `${d.title} · ${d.isGray ? "Grayscale" : "RGB"} ${d.bits}-bit · ${d.markers.length} marker${d.markers.length === 1 ? "" : "s"}` : "No image open";
-    $("steps").innerHTML = STEPS.map(([id, label]) => `<button data-step="${id}" class="${S.step === id ? "on" : ""}">${label}</button>`).join("");
+    $("docline").textContent = !d
+      ? "No image open"
+      : onSheet()
+        ? `Opportunities sheet for ${S.sheet.sourceTitle}`
+        : `${d.title} · ${d.isGray ? "Grayscale" : "RGB"} ${d.bits}-bit · ${d.markers.length} marker${d.markers.length === 1 ? "" : "s"}`;
+    $("stepper").innerHTML = FLOW.map((s, i) => {
+      const current = S.step === s.id;
+      const done = DONE[s.id](p);
+      const reason = lockReason(s.id, p);
+      const cls = ["step", current ? "current" : done ? "done" : "", reason && !current ? "locked" : ""].filter(Boolean).join(" ");
+      const rail = i ? `<div class="rail${DONE[FLOW[i - 1].id](p) ? " done" : ""}"></div>` : "";
+      return `${rail}<button class="${cls}" data-goto="${s.id}" title="${esc(reason || "Step " + (i + 1) + ": " + s.label)}"><span class="dot">${done && !current ? "✓" : i + 1}</span><span class="name">${s.label}</span></button>`;
+    }).join("");
+    document.querySelectorAll("#tools button[data-goto]").forEach((b) => b.classList.toggle("on", b.getAttribute("data-goto") === S.step));
+    const noImage = !d && isFlow(S.step);
+    $("empty").style.display = noImage ? "block" : "none";
+    $("welcome").style.display = !noImage && !settings.welcomed && S.step === "visualize" ? "block" : "none";
     document.querySelectorAll("section[data-step]").forEach((sec) => {
-      sec.style.display = sec.getAttribute("data-step") === S.step ? "block" : "none";
+      sec.style.display = !noImage && sec.getAttribute("data-step") === S.step ? "block" : "none";
     });
-    const showOverlay = OVERLAY_STEPS.includes(S.step) || (!settings.training && S.step !== "practice");
-    $("overlayBar").style.display = showOverlay ? "block" : "none";
+  }
+
+  function renderGuide(p) {
+    const id = S.step;
+    if (isFlow(id)) {
+      $("head-" + id).textContent = `Step ${flowIndex(id) + 1} of ${FLOW.length}`;
+      $("check-" + id).innerHTML = checklist(id, p)
+        .map(
+          (it) =>
+            `<div class="check-item${it.done ? " done" : ""}"><span class="mark">${it.done ? "✓" : "○"}</span><span class="text">${esc(it.text)}${it.optional ? '<span class="opt">optional</span>' : ""}</span></div>`
+        )
+        .join("");
+      const next = nextFor(id, p);
+      $("next-" + id).innerHTML = next ? `<b>Next:</b> ${esc(next.text)}${next.action ? `<br/><button class="cta" data-act="${next.action.act}">${esc(next.action.label)}</button>` : ""}` : "";
+    }
+    const a = actionsFor(id, p);
+    const el = $("actions-" + id);
+    if (!el) return;
+    const back = a.back ? `<button data-goto="${a.back.goto}">← ${esc(a.back.label)}</button>` : a.extra ? `<button class="link" data-act="${a.extra.act}">${esc(a.extra.label)}</button>` : "<span></span>";
+    const primary = a.primary
+      ? `<button class="cta" id="primary-${id}" ${a.primary.goto ? `data-goto="${a.primary.goto}"` : `data-act="${a.primary.act}"`}${a.primary.blocked ? " disabled" : ""}>${esc(a.primary.label)}</button>`
+      : "";
+    el.innerHTML = `<div class="row">${back}${primary}</div>${a.primary && a.primary.blocked ? `<p class="blocked">${esc(a.primary.blocked)}</p>` : ""}`;
   }
 
   function renderVisualize() {
     const ses = session();
     if (!isFocused($("sentence"))) $("sentence").value = ses.sentence;
     $("intent").innerHTML = Z.INTENTS.map((i) => `<button data-intent="${i.id}" class="${ses.intent === i.id ? "on" : ""}">${i.label}</button>`).join("");
-    $("intentHint").textContent = (Z.INTENTS.find((i) => i.id === ses.intent) || {}).hint || "";
+    $("intentHint").textContent = ses.intent ? (Z.INTENTS.find((i) => i.id === ses.intent) || {}).hint : "Pick one; the advice after Reveal depends on it.";
     $("mono").checked = ses.mono;
     $("mono").disabled = !!(S.doc && S.doc.isGray);
   }
 
-  function gateReasons() {
-    const ses = session();
-    const reasons = [];
-    if (!S.doc) return ["Open an image first."];
-    if (ses.sentence.trim().length < 10) reasons.push("Write your visualization first (Visualize).");
-    if (!S.doc.markers.length) reasons.push("Place at least one Color Sampler marker on the image.");
-    else if (!Object.keys(ses.guesses).some((k) => S.doc.markers.some((m) => String(m.index) === k))) reasons.push("Guess the zone of at least one marker.");
-    return reasons;
-  }
-
   function renderPredict() {
     const ses = session();
-    const ms = S.doc ? S.doc.markers : [];
-    const msig = (S.doc ? S.doc.id : "") + JSON.stringify(ms.map((m) => m.index));
+    const ms = S.doc && !onSheet() ? S.doc.markers : [];
+    const msig = sessionKey() + JSON.stringify(ms.map((m) => m.index));
     if (msig !== S.markerSig || !$("markerList").innerHTML) {
       S.markerSig = msig;
-      $("markerList").innerHTML = ms.length
-        ? ms
-            .map(
-              (m) => `<div class="mrow"><b>#${m.index}</b><span class="grow">${roleOf(m.index)}</span>
-              <select data-guess="${m.index}">${zoneOptions(ses.guesses[m.index], true)}</select></div>`
-            )
-            .join("")
-        : `<p class="hint">No markers yet. Choose the Color Sampler tool (I) and click the image.</p>`;
+      const byIndex = {};
+      ms.forEach((m) => (byIndex[m.index] = m));
+      const last = Math.max(2, ...ms.map((m) => m.index));
+      const rows = [];
+      for (let i = 1; i <= last; i++) {
+        const m = byIndex[i];
+        if (m) {
+          rows.push(`<div class="mrow"><b>#${i}</b><span class="grow role">${roleOf(i)}</span><select data-guess="${i}">${zoneOptions(ses.guesses[i], true)}</select></div>`);
+        } else if (i <= 2) {
+          rows.push(`<div class="mrow"><b>#${i}</b><span class="grow slot-empty">${roleOf(i)}: not placed yet. Click ${roleHint(i)}.</span></div>`);
+        }
+      }
+      $("markerList").innerHTML = rows.join("");
     }
     if (!isFocused($("darkGuess"))) $("darkGuess").value = ses.darkGuess;
     $("darkGuessVal").textContent = ses.darkGuess + "%";
-    const reasons = settings.training ? gateReasons() : S.doc ? [] : ["Open an image first."];
-    $("reveal").disabled = reasons.length > 0;
-    $("revealGate").textContent = reasons.length ? reasons.join(" ") : settings.training ? "Committed. Reveal when ready." : "";
   }
 
   function errorWords(e) {
@@ -265,18 +483,16 @@
     return `you read it ${Math.abs(e).toFixed(1)} zone${Math.abs(e) >= 1.05 ? "s" : ""} ${e > 0 ? "lighter" : "darker"}`;
   }
 
-  function renderReveal() {
+  function renderReveal(p) {
     const ses = session();
     const body = $("revealBody");
     if (!ses.reveal) {
-      const reasons = settings.training ? gateReasons() : [];
-      body.innerHTML = `<p class="hint">${reasons.length ? "Not yet. " + esc(reasons.join(" ")) : "Use Reveal on the Predict step to measure."}</p>`;
+      S.moves = [];
+      body.innerHTML = `<p class="hint">Nothing has been measured yet. Your markers and the whole frame are read when you reveal.</p>`;
       return;
     }
     const r = ses.reveal;
     const a = r.dist.analysis;
-    const fr = r.dist.fractions;
-    const maxF = Math.max.apply(null, fr) || 1;
     const intent = Z.INTENTS.find((i) => i.id === r.intent) || Z.INTENTS[1];
     const rows = r.rows
       .map((row) => {
@@ -292,9 +508,14 @@
       if (sc.bias > 0.3) summary += `<p class="hint">You saw these values lighter than they measure. The eye adapts to shadow; film and paper don't.</p>`;
       else if (sc.bias < -0.3) summary += `<p class="hint">You saw these values darker than they measure.</p>`;
     }
-    const bars = fr.map((f, k) => `<div class="bar" title="Zone ${Z.ROMAN[k]}: ${pct(f)}" style="height: ${Math.max(2, Math.round((f / maxF) * 80))}px; background: rgb(${Z.ZONE_COLORS[k].join(",")})"></div>`).join("");
-    const labels = fr.map((f, k) => `<span>${Z.ROMAN[k]}<br/>${f >= 0.005 ? Math.round(f * 100) : "·"}</span>`).join("");
-    const suggestions = Z.suggestions(r.intent, a).map((s) => `<li>${esc(s)}</li>`).join("");
+    const shadow = r.rows.find((x) => x.index === 1);
+    S.moves = Z.moves(r.intent, a, { shadowZone: shadow ? shadow.actual : null, rgb: !!(S.doc && S.doc.isRGB) });
+    const moves = S.moves
+      .map(
+        (m, i) =>
+          `<div class="move"><div>${esc(m.text)}</div>${m.tries.map((t, j) => `<button data-try="${i}-${j}">${esc(t.label)}</button>`).join("")}</div>`
+      )
+      .join("");
     body.innerHTML = `
       <div class="quote">“${esc(r.sentence)}”</div>
       <p class="hint small">You wanted: ${intent.label}.</p>
@@ -303,18 +524,29 @@
       ${summary}
       <h3>The whole frame</h3>
       <p>You estimated ${r.darkGuess}% dark; it measures ${pct(a.dark)} (Zones 0–IV).</p>
-      <div class="bars">${bars}</div>
-      <div class="barlabels">${labels}</div>
+      ${bars(r.dist.fractions, false)}
       <p><b>${Z.KEY_LABEL[a.key]}</b> · ${Z.RANGE_LABEL[a.range]}</p>
       <p class="hint small">Textured darks (II–III) ${pct(a.texturedDark)} · textured lights (VII–VIII) ${pct(a.texturedLight)} · middle (IV–VI) ${pct(a.middle)} · no texture (0–I, IX–X) ${pct(a.dead)}</p>
-      <h3>Toward your visualization</h3>
-      <ul>${suggestions}</ul>
-      <div class="row"><button data-goto="interpret" class="cta">Interpret</button><button data-goto="opportunities">See the opportunities</button></div>`;
+      <h3>Moves toward your print</h3>
+      ${moves}`;
+  }
+
+  function renderReadout() {
+    const ses = session();
+    const base = ses.reveal ? ses.reveal.dist : null;
+    if (!ses.now) {
+      $("readout").innerHTML = `<p class="hint">Your print's zones appear here after each change.</p>`;
+      return;
+    }
+    $("readout").innerHTML = `<p><b>Your print now:</b> ${readingLine(ses.now.analysis)}</p>${bars(ses.now.fractions, true)}${
+      base ? `<p class="hint small">As metered: ${readingLine(base.analysis)}</p>` : ""
+    }`;
   }
 
   function renderInterpret() {
     const ses = session();
     const rgb = !!(S.doc && S.doc.isRGB);
+    renderReadout();
     if (!$("filter").options.length) $("filter").innerHTML = Z.FILTERS.map((f) => `<option value="${f.id}">${f.label}</option>`).join("");
     $("filter").value = ses.filter;
     $("filter").disabled = !rgb;
@@ -350,14 +582,14 @@
     return parts.map((t) => `<span>${esc(t)}</span>`).join("<br/>");
   }
 
-  function renderOpportunities() {
+  function renderCompare() {
     const box = $("variantBox");
-    if (!S.sheet) {
+    if (!S.sheet || S.sheet.sourceId !== sessionKey()) {
       box.style.display = "none";
       return;
     }
     box.style.display = "block";
-    $("variantLabel").textContent = `Apply a variant to ${S.sheet.sourceTitle}`;
+    $("variantLabel").textContent = `Apply a version to ${S.sheet.sourceTitle}`;
     if (!isFocused($("variant"))) {
       $("variant").innerHTML = S.sheet.variants.map((v, i) => `<option value="${i}">${Z.filterById(v.filterId).label} · ${Z.devLabel(v.n)}</option>`).join("");
     }
@@ -417,8 +649,10 @@
     $("spot").value = settings.spot;
   }
 
-  function renderOverlay() {
+  function renderOverlay(p) {
     const ses = session();
+    const seeing = ["reveal", "interpret", "compare", "ink"].includes(S.step) && (p.revealed || !settings.training || S.step === "ink");
+    $("overlayBar").style.display = S.doc && (seeing || (!settings.training && S.step !== "practice")) ? "block" : "none";
     $("overlayModes").innerHTML = Z.OVERLAY_MODES.map((m) => `<button data-overlay="${m.id}" class="${ses.overlay === m.id ? "on" : ""}">${m.label}</button>`).join("");
     const mode = Z.OVERLAY_MODES.find((m) => m.id === ses.overlay) || Z.OVERLAY_MODES[0];
     $("overlayHint").textContent = mode.id === "off" ? "" : mode.hint;
@@ -431,15 +665,37 @@
     $("legend").innerHTML = showLegend ? Z.ZONE_COLORS.map((c, k) => `<span style="background: rgb(${c.join(",")}); color: ${textOn(c)}" title="${esc(Z.ZONES[k].meaning)}">${Z.ROMAN[k]}</span>`).join("") : "";
   }
 
-  // ---- Actions --------------------------------------------------------------------------
+  // ---- Navigation and actions -------------------------------------------------------------
 
   async function setStep(step) {
     S.step = step;
+    if (isFlow(step)) {
+      S.lastFlow = step;
+      session().step = step;
+    }
     render();
+    const ses = session();
     // In training, nothing measured may be on screen while you look and guess.
-    if (settings.training && BLIND_STEPS.includes(step) && session().overlay !== "off" && !session().reveal) {
+    if (settings.training && (step === "visualize" || step === "predict") && ses.overlay !== "off" && !ses.reveal) {
       await run("Hiding the overlay…", () => P.hideOverlay());
     }
+    // Interpret opens with a reading of the print as it stands.
+    if (step === "interpret" && S.doc && !onSheet() && !ses.now) {
+      await run("Reading your print…", async () => {
+        ses.now = await P.measureDistribution({ scale: scale() });
+      });
+    }
+  }
+
+  function navigate(id) {
+    if (isFlow(id)) {
+      const reason = lockReason(id, progress());
+      if (reason) {
+        status(reason);
+        return;
+      }
+    }
+    setStep(id);
   }
 
   // Requests capture their values when made: by the time a queued request
@@ -462,12 +718,13 @@
       const dist = await P.measureDistribution({ scale: sc });
       const rows = measured.map((m) => ({ index: m.index, L: m.L, actual: m.zone, guess: ses.guesses[m.index] }));
       const score = Z.scorePredictions(rows);
-      ses.reveal = { rows, score, dist, sentence: ses.sentence, intent: ses.intent, darkGuess: ses.darkGuess };
+      ses.reveal = { rows, score, dist, sentence: ses.sentence, intent: ses.intent || "full", darkGuess: ses.darkGuess };
+      ses.now = dist;
       const log = store.get(LOG_KEY, []);
       log.push({
         date: new Date().toISOString(),
         image: S.doc.title,
-        intent: ses.intent,
+        intent: ses.intent || "full",
         sentence: ses.sentence,
         darkGuess: ses.darkGuess,
         darkActual: Math.round(dist.analysis.dark * 100),
@@ -481,6 +738,69 @@
       ses.overlay = "zones";
       await applyOverlay();
       S.step = "reveal";
+      ses.step = "reveal";
+    });
+  }
+
+  // A one-click move from the Reveal step: apply it, then show Interpret.
+  function applyTry(ref) {
+    const [i, j] = ref.split("-").map(Number);
+    const move = S.moves[i];
+    const t = move && move.tries[j];
+    if (!t) return;
+    const a = t.action;
+    const ses = session();
+    if (a.type === "goto") {
+      navigate(a.step);
+      return;
+    }
+    if (a.type === "place") {
+      Object.assign(ses, { placeA: a.index, placeAZone: a.zone, useB: false });
+      runPrint(t.label + "…", async () => {
+        ses.placement = await P.placeMarkers({ placements: [{ index: a.index, zone: a.zone }], scale: scale(), spot: settings.spot });
+        ses.dev = null;
+      }, "develop");
+    } else if (a.type === "dev") {
+      ses.dev = a.n;
+      ses.placement = null;
+      runPrint(t.label + "…", () => P.setDevelopment({ n: a.n, scale: scale() }), "develop");
+    } else if (a.type === "filter") {
+      ses.filter = a.id;
+      runPrint(t.label + "…", () => P.setFilter(a.id), "filter");
+    } else if (a.type === "burnEdges") {
+      ses.burnEdges = a.amount;
+      runPrint(t.label + "…", () => P.setBurnEdges(a.amount), "burn");
+    }
+    S.step = "interpret";
+    S.lastFlow = "interpret";
+    ses.step = "interpret";
+    render();
+  }
+
+  function startOver() {
+    run("Starting a new round…", async () => {
+      const key = sessionKey();
+      const keepMono = session().mono;
+      S.sessions[key] = Object.assign(freshSession(), { mono: keepMono });
+      if (S.sheet && S.sheet.sourceId === key) S.sheet = null;
+      await P.resetPrint();
+      await P.hideOverlay();
+      S.step = "visualize";
+      S.lastFlow = "visualize";
+    });
+  }
+
+  function makeSheet() {
+    run("Rendering twenty performances… Esc cancels.", async () => {
+      S.sheet = await P.makeOpportunitiesSheet({
+        thumb: Number($("sheetSize").value),
+        includeBurns: $("sheetBurns").checked,
+        masses: $("sheetMasses").checked,
+        scale: scale(),
+      });
+      S.step = "compare";
+      session().step = "compare";
+      return "The sheet is open as a new document. Pick a version below to apply it.";
     });
   }
 
@@ -501,6 +821,36 @@
     }
   }
 
+  const ACTS = {
+    welcomeOk: () => {
+      settings.welcomed = true;
+      saveSettings();
+      render();
+    },
+    showWelcome: () => {
+      settings.welcomed = false;
+      saveSettings();
+      navigate("visualize");
+    },
+    pickSampler: () => run("Picking the Color Sampler tool…", async () => {
+      await P.selectColorSamplerTool();
+      return "Color Sampler ready: click the image to place a marker.";
+    }),
+    clearMarkers: () =>
+      run("Removing markers…", async () => {
+        await P.clearMarkers();
+        session().guesses = {};
+      }),
+    reveal,
+    startOver,
+    makeSheet,
+    resetPrint: () =>
+      runPrint("Back to the neutral print…", async () => {
+        await P.resetPrint();
+        Object.assign(session(), { filter: "none", dev: 0, placement: null, burnEdges: 0, burnSky: 0 });
+      }),
+  };
+
   function bind() {
     const on = (id, ev, fn) => $(id).addEventListener(ev, fn);
     const closestData = (e, attr) => {
@@ -512,37 +862,33 @@
       return null;
     };
 
-    on("steps", "click", (e) => {
-      const step = closestData(e, "data-step");
-      if (step) setStep(step);
+    // Navigation, named actions and one-click moves, from anywhere.
+    document.body.addEventListener("click", (e) => {
+      const goto = closestData(e, "data-goto");
+      if (goto) return navigate(goto);
+      const act = closestData(e, "data-act");
+      if (act && ACTS[act]) return ACTS[act]();
+      const tryRef = closestData(e, "data-try");
+      if (tryRef) return applyTry(tryRef);
     });
 
     // Visualize
     on("sentence", "input", () => {
       session().sentence = $("sentence").value;
-      renderPredict();
+      const p = progress();
+      renderHeader(p);
+      renderGuide(p);
     });
     on("intent", "click", (e) => {
       const id = closestData(e, "data-intent");
       if (!id) return;
       session().intent = id;
-      renderVisualize();
+      render();
     });
     on("mono", "change", () => {
       const want = $("mono").checked;
       run(want ? "Monochrome preview…" : "Back to colour…", () => P.setMonochrome(want), { queue: true });
     });
-    on("toPredict", "click", () => setStep("predict"));
-    on("fresh", "click", () =>
-      run("Starting fresh…", async () => {
-        const id = S.doc.id;
-        const keepMono = session().mono;
-        S.sessions[id] = Object.assign(freshSession(), { mono: keepMono });
-        await P.resetPrint();
-        await P.hideOverlay();
-        S.step = "visualize";
-      })
-    );
 
     // Predict
     on("markerList", "change", (e) => {
@@ -551,31 +897,23 @@
       const v = e.target.value;
       if (v === "") delete session().guesses[idx];
       else session().guesses[idx] = Number(v);
-      renderPredict();
+      const p = progress();
+      renderHeader(p);
+      renderGuide(p);
     });
     on("darkGuess", "input", () => {
-      session().darkGuess = Number($("darkGuess").value);
-      $("darkGuessVal").textContent = session().darkGuess + "%";
-    });
-    on("reveal", "click", reveal);
-    on("clearMarkers", "click", () =>
-      run("Clearing markers…", async () => {
-        await P.clearMarkers();
-        session().guesses = {};
-      })
-    );
-
-    // Reveal
-    on("revealBody", "click", (e) => {
-      const step = closestData(e, "data-goto");
-      if (step) setStep(step);
+      const ses = session();
+      ses.darkGuess = Number($("darkGuess").value);
+      ses.darkTouched = true;
+      $("darkGuessVal").textContent = ses.darkGuess + "%";
+      renderGuide(progress());
     });
 
     // Interpret
     on("filter", "change", () => {
       const id = $("filter").value;
       session().filter = id;
-      run("Filter…", () => P.setFilter(id), { queue: true });
+      runPrint("Filter…", () => P.setFilter(id), "filter");
     });
     on("devs", "click", (e) => {
       const n = closestData(e, "data-dev");
@@ -583,7 +921,7 @@
       const ses = session();
       ses.dev = Number(n);
       ses.placement = null;
-      run("Developing…", () => P.setDevelopment({ n: Number(n), scale: scale() }), { queue: true });
+      runPrint("Developing…", () => P.setDevelopment({ n: Number(n), scale: scale() }), "develop");
     });
     on("placeA", "change", () => (session().placeA = Number($("placeA").value)));
     on("placeB", "change", () => (session().placeB = Number($("placeB").value)));
@@ -605,16 +943,16 @@
         }
         placements.push({ index: b, zone: Number($("placeBZone").value) });
       }
-      run("Placing…", async () => {
+      runPrint("Placing…", async () => {
         ses.placement = await P.placeMarkers({ placements, scale: scale(), spot: settings.spot });
         ses.dev = null;
-      });
+      }, "develop");
     });
     on("burnEdges", "input", () => ($("burnEdgesVal").textContent = $("burnEdges").value + "%"));
     on("burnEdges", "change", () => {
       const v = Number($("burnEdges").value);
       session().burnEdges = v;
-      run("Burning the edges…", () => P.setBurnEdges(v), { queue: true });
+      runPrint("Burning the edges…", () => P.setBurnEdges(v), "burn");
     });
     on("burnSky", "input", () => ($("burnSkyVal").textContent = $("burnSky").value + "%"));
     const burnSky = () => {
@@ -622,39 +960,27 @@
       ses.burnSky = Number($("burnSky").value);
       ses.skyDepth = $("skyDepth").value;
       const req = { amount: ses.burnSky, depth: Number(ses.skyDepth) };
-      run("Burning the sky…", () => P.setBurnSky(req), { queue: true });
+      runPrint("Burning the sky…", () => P.setBurnSky(req), "burn");
     };
     on("burnSky", "change", burnSky);
     on("skyDepth", "change", () => {
       session().skyDepth = $("skyDepth").value;
       if (session().burnSky > 0) burnSky();
     });
-    on("resetPrint", "click", () =>
-      run("Neutral print…", async () => {
-        await P.resetPrint();
-        Object.assign(session(), { filter: "none", dev: 0, placement: null, burnEdges: 0, burnSky: 0 });
-      })
-    );
 
-    // Opportunities
-    on("makeSheet", "click", () =>
-      run("Rendering twenty performances… Esc cancels.", async () => {
-        S.sheet = await P.makeOpportunitiesSheet({
-          thumb: Number($("sheetSize").value),
-          includeBurns: $("sheetBurns").checked,
-          masses: $("sheetMasses").checked,
-          scale: scale(),
-        });
-        return "The sheet is open as a new document.";
-      })
-    );
+    // Compare
     on("applyVariant", "click", () => {
       if (!S.sheet) return;
       const v = S.sheet.variants[Number($("variant").value)];
-      run("Applying…", async () => {
+      const ses = session();
+      runPrint("Applying…", async () => {
         await P.applyVariant({ filterId: v.filterId, n: v.n, scale: scale(), docId: S.sheet.sourceId });
+        ses.applied = true;
+        ses.filter = v.filterId;
+        ses.step = "interpret";
         S.step = "interpret";
-      });
+        S.lastFlow = "interpret";
+      }, "develop");
     });
 
     // Ink
@@ -743,7 +1069,7 @@
       const id = closestData(e, "data-overlay");
       if (!id) return;
       session().overlay = id;
-      renderOverlay();
+      renderOverlay(progress());
       queueOverlay("Overlay…");
     });
     on("split", "input", () => ($("splitVal").textContent = "Zone " + Z.ROMAN[Number($("split").value)]));
